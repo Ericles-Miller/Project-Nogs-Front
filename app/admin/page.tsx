@@ -233,6 +233,8 @@ export default function AdminPage() {
     return new Date(data).toLocaleDateString("pt-BR")
   }
 
+
+
   // Função para buscar projetos da ONG
   const fetchProjetosOng = async () => {
     try {
@@ -254,23 +256,68 @@ export default function AdminPage() {
       }
 
       if (response.data) {
+        console.log('📊 Dados brutos da API:', response.data)
+        
+        // Processar os dados da API para o novo formato
+        let projectsData = response.data
+        
+        // Se os dados vierem no formato { project: {...}, users: [...] }
+        if (Array.isArray(response.data) && response.data.length > 0 && response.data[0].project) {
+          console.log('🔄 Convertendo formato de dados...')
+          projectsData = response.data.map((item: any) => ({
+            ...item.project,
+            enrollments: item.users ? item.users.map((user: any) => ({
+              id: user.id,
+              volunteerId: user.id,
+              projectId: item.project.id,
+              status: 'pending',
+              notes: '',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              volunteer: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                city: user.city,
+                state: user.state,
+                userType: user.userType,
+                skills: user.skills || [],
+                experience: user.experience || '',
+                preferredCauses: user.preferredCauses || [],
+                projects: user.projects || [],
+                campaigns: user.campaigns || [],
+                enrollments: user.enrollments || [],
+                ratingsGiven: user.ratingsGiven || [],
+                donations: user.donations || [],
+                createdAt: user.createdAt
+              }
+            })) : []
+          }))
+        }
+        
+        console.log('✅ Dados processados:', projectsData)
+        
         // Filtrar apenas projetos da ONG logada
         const userData = localStorage.getItem('auth_user')
         if (userData) {
           try {
             const user = JSON.parse(userData)
-            // Para simplificar, vamos assumir que o admin é uma ONG
-            // Em um sistema real, você verificaria o userType e ngoId
-            const projetosOng = response.data.filter((projeto: any) => 
-              projeto.ngoId === user.id || user.userType === 'ngo'
-            )
+            console.log('👤 Usuário logado:', user)
+            
+            // Filtrar projetos da ONG logada
+            const projetosOng = projectsData.filter((projeto: any) => {
+              console.log(`🔍 Verificando projeto ${projeto.id}: ngoId=${projeto.ngoId}, user.id=${user.id}, userType=${user.userType}`)
+              return projeto.ngoId === user.id || user.userType === 'ngo'
+            })
+            
+            console.log('🏢 Projetos da ONG:', projetosOng)
             setProjetosDinamicos(projetosOng)
           } catch (error) {
             console.error('Erro ao filtrar projetos da ONG:', error)
-            setProjetosDinamicos(response.data)
+            setProjetosDinamicos(projectsData)
           }
         } else {
-          setProjetosDinamicos(response.data)
+          setProjetosDinamicos(projectsData)
         }
       }
     } catch (err) {
@@ -369,8 +416,12 @@ export default function AdminPage() {
 
   const projetosFiltrados = projetosDinamicos.filter((projeto) => {
     const matchTitulo = projeto.title?.toLowerCase().includes(filtroProjetos.toLowerCase()) || false
+    const matchCausa = projeto.cause?.toLowerCase().includes(filtroProjetos.toLowerCase()) || false
+    const matchLocalizacao = projeto.location?.toLowerCase().includes(filtroProjetos.toLowerCase()) || false
     const matchStatus = filtroStatusProjetos === "Todos" || projeto.status === filtroStatusProjetos
-    return matchTitulo && matchStatus
+    
+    const matchBusca = matchTitulo || matchCausa || matchLocalizacao
+    return matchBusca && matchStatus
   })
 
   const campanhasFiltradas = campanhas.filter((campanha) => {
@@ -662,7 +713,9 @@ export default function AdminPage() {
                           <TableCell>
                             <div className="flex items-center gap-1">
                               <Building className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-sm">ONG Logada</span>
+                              <span className="text-sm">
+                                {projeto.ngo?.organizationName || 'ONG Logada'}
+                              </span>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -676,6 +729,14 @@ export default function AdminPage() {
                           <TableCell>
                             <div className="text-sm">
                               {projeto.enrollments?.length || 0}/{projeto.maxVolunteers}
+                              {projeto.enrollments && projeto.enrollments.length > 0 && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {projeto.enrollments.slice(0, 3).map((enrollment: any) => 
+                                    enrollment.volunteer?.name || enrollment.volunteerId || 'Voluntário'
+                                  ).join(', ')}
+                                  {projeto.enrollments.length > 3 && ` +${projeto.enrollments.length - 3} mais`}
+                                </div>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>

@@ -122,13 +122,13 @@ export default function CampaignDetailPage() {
       alert("Por favor, insira um valor válido para a doação.")
       return
     }
-    
+
     // Se for anônimo, não precisa de nome nem email
     if (!donationForm.anonymous && !donationForm.donorName) {
       alert("Por favor, insira seu nome ou marque a opção de doação anônima.")
       return
     }
-    
+
     try {
       setIsSubmittingDonation(true)
       
@@ -231,13 +231,13 @@ export default function CampaignDetailPage() {
             
             <Card>
               <CardContent className="pt-6">
-                <div className="text-center">
+          <div className="text-center">
                   <p className="text-red-600 mb-4">
                     {error || "Campanha não encontrada"}
                   </p>
                   <Button onClick={fetchCampaignDetails}>
                     Tentar Novamente
-                  </Button>
+              </Button>
                 </div>
               </CardContent>
             </Card>
@@ -250,7 +250,7 @@ export default function CampaignDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navigation />
-      
+
       <div className="container mx-auto px-4 py-8">
         {/* Botão Voltar */}
         <Button
@@ -282,7 +282,7 @@ export default function CampaignDetailPage() {
             <Card>
               <CardHeader>
                 <div className="flex items-start justify-between">
-                  <div>
+                    <div>
                     <CardTitle className="text-2xl mb-2">{campaign.title}</CardTitle>
                     <div className="flex items-center gap-4 mb-4">
                       <Badge variant={campaign.status === 'active' ? 'default' : campaign.status === 'completed' ? 'secondary' : 'destructive'}>
@@ -307,7 +307,7 @@ export default function CampaignDetailPage() {
                 <div>
                   <h3 className="font-semibold mb-2">Descrição</h3>
                   <p className="text-gray-700 leading-relaxed">{campaign.description}</p>
-                </div>
+        </div>
 
                                  {/* Progresso da Campanha */}
                  <div>
@@ -316,13 +316,13 @@ export default function CampaignDetailPage() {
                      <span className="text-sm text-gray-600">
                        {formatarMoeda(campaign.currentAmount || 0)} de {formatarMoeda(campaign.goalAmount || 0)}
                      </span>
-                   </div>
+                      </div>
                    <Progress value={calcularProgresso()} className="h-3" />
                    <div className="flex items-center justify-between mt-2 text-sm text-gray-600">
                      <span>{calcularProgresso().toFixed(1)}% concluído</span>
                      <span>{campaign.numberOfDonations || 0} doadores</span>
-                   </div>
-                 </div>
+                      </div>
+                    </div>
 
                                  {/* Informações da ONG */}
                  {campaign.ngo && (
@@ -335,11 +335,11 @@ export default function CampaignDetailPage() {
                          <div className="grid grid-cols-2 gap-4 text-sm">
                            <div>
                              <span className="font-medium">Cidade:</span> {campaign.ngo.city || 'N/A'}, {campaign.ngo.state || 'N/A'}
-                           </div>
+                      </div>
                            <div>
                              <span className="font-medium">Email:</span> {campaign.ngo.email || 'Email não disponível'}
-                           </div>
-                         </div>
+                      </div>
+                    </div>
                          {campaign.ngo.causes && campaign.ngo.causes.length > 0 && (
                            <div className="mt-3">
                              <span className="font-medium text-sm">Causas:</span>
@@ -350,10 +350,10 @@ export default function CampaignDetailPage() {
                                  </Badge>
                                ))}
                              </div>
-                           </div>
+                    </div>
                          )}
-                       </CardContent>
-                     </Card>
+                </CardContent>
+              </Card>
                    </div>
                  )}
 
@@ -373,19 +373,19 @@ export default function CampaignDetailPage() {
                        <p className="text-sm text-gray-600">{campaign.endDate ? formatarData(campaign.endDate) : 'Data não disponível'}</p>
                      </div>
                    </div>
-                 </div>
+                      </div>
 
                                  {campaign.status === 'active' && (
                    <div className="bg-blue-50 p-4 rounded-lg">
                      <div className="flex items-center gap-2 mb-2">
                        <Target className="h-5 w-5 text-blue-600" />
                        <span className="font-medium text-blue-800">Meta da Campanha</span>
-                     </div>
+                    </div>
                      <p className="text-blue-700">
                        Esta campanha precisa arrecadar {formatarMoeda((campaign.goalAmount || 0) - (campaign.currentAmount || 0))} 
                        para atingir sua meta. {calcularDiasRestantes() > 0 ? `Restam ${calcularDiasRestantes()} dias.` : 'Último dia!'}
                      </p>
-                   </div>
+                </div>
                  )}
               </CardContent>
             </Card>
@@ -403,10 +403,10 @@ export default function CampaignDetailPage() {
                    <div className="flex items-center gap-2">
                      <DollarSign className="h-5 w-5 text-green-600" />
                      <span>Arrecadado</span>
-                   </div>
+                  </div>
                    <span className="font-semibold">{formatarMoeda(campaign.currentAmount || 0)}</span>
-                 </div>
-                 
+                </div>
+
                  <div className="flex items-center justify-between">
                    <div className="flex items-center gap-2">
                      <Target className="h-5 w-5 text-blue-600" />
@@ -422,7 +422,7 @@ export default function CampaignDetailPage() {
                   </div>
                   <span className="font-semibold">{campaign.numberOfDonations || 0}</span>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-5 w-5 text-orange-600" />
@@ -463,7 +463,7 @@ export default function CampaignDetailPage() {
                       </svg>
                     </Button>
                   </div>
-                </CardHeader>
+              </CardHeader>
               
               <CardContent>
                 <form onSubmit={handleDonationSubmit} className="space-y-4">
@@ -582,7 +582,7 @@ export default function CampaignDetailPage() {
                       className="flex-1"
                     >
                       Cancelar
-                    </Button>
+                  </Button>
                                          <Button
                        type="submit"
                        className="flex-1 bg-green-600 hover:bg-green-700 shadow-lg"
@@ -599,12 +599,12 @@ export default function CampaignDetailPage() {
                            Doar
                          </>
                        )}
-                     </Button>
-                  </div>
+                  </Button>
+                </div>
                                  </form>
-               </CardContent>
-             </Card>
-           </div>
+              </CardContent>
+            </Card>
+          </div>
            </>
          )}
       </div>

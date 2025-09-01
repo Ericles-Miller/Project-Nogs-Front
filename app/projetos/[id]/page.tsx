@@ -107,9 +107,13 @@ export default function ProjetoDetalhePage() {
       const token = localStorage.getItem('auth_token')
       const userData = localStorage.getItem('auth_user')
       
+      console.log('🔑 Token encontrado:', token ? 'Sim' : 'Não')
+      console.log('👤 Dados do usuário encontrados:', userData ? 'Sim' : 'Não')
+      
       if (token && userData) {
         try {
           const user = JSON.parse(userData)
+          console.log('✅ Usuário carregado:', user)
           setAuthenticatedUser(user)
         } catch (error) {
           console.error('Erro ao carregar dados do usuário:', error)
@@ -179,12 +183,52 @@ export default function ProjetoDetalhePage() {
       }
 
       if (response.data) {
-        setProjeto(response.data)
+        console.log('📊 Dados brutos do projeto:', response.data)
+        
+        // Processar os dados do projeto
+        let projectData = response.data
+        
+        // Se os dados vierem no formato { project: {...}, users: [...] }
+        if (response.data.project && response.data.users) {
+          console.log('🔄 Convertendo formato de dados do projeto...')
+          projectData = {
+            ...response.data.project,
+            enrollments: response.data.users.map((user: any) => ({
+              id: user.id,
+              volunteerId: user.id,
+              projectId: response.data.project.id,
+              status: 'pending',
+              notes: '',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              volunteer: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                city: user.city,
+                state: user.state,
+                userType: user.userType,
+                skills: user.skills || [],
+                experience: user.experience || '',
+                preferredCauses: user.preferredCauses || [],
+                projects: user.projects || [],
+                campaigns: user.campaigns || [],
+                enrollments: user.enrollments || [],
+                ratingsGiven: user.ratingsGiven || [],
+                donations: user.donations || [],
+                createdAt: user.createdAt
+              }
+            }))
+          }
+        }
+        
+        console.log('✅ Dados processados do projeto:', projectData)
+        setProjeto(projectData)
         
         // Verificar se o usuário está inscrito neste projeto
         if (authenticatedUser && authenticatedUser.userType === 'volunteer') {
-          const isEnrolled = response.data.enrollments && 
-            response.data.enrollments.some((enrollment: Enrollment) => 
+          const isEnrolled = projectData.enrollments && 
+            projectData.enrollments.some((enrollment: Enrollment) => 
               enrollment.volunteerId === authenticatedUser.id
             )
           setInscrito(isEnrolled)
@@ -201,8 +245,8 @@ export default function ProjetoDetalhePage() {
         }
         
         // Se o projeto tem ngoId, buscar dados da ONG
-        if (response.data.ngoId) {
-          await fetchNgoData(response.data.ngoId, token || undefined)
+        if (projectData.ngoId) {
+          await fetchNgoData(projectData.ngoId, token || undefined)
         }
       }
     } catch (err) {
@@ -498,7 +542,9 @@ export default function ProjetoDetalhePage() {
                   <div className="space-y-2">
                     {projeto.enrollments.slice(0, 5).map((enrollment) => (
                       <div key={enrollment.id} className="flex items-center justify-between p-2 bg-muted rounded">
-                        <span className="font-medium">{enrollment.volunteer.name}</span>
+                        <span className="font-medium">
+                          {enrollment.volunteer?.name || enrollment.volunteerId || 'Voluntário'}
+                        </span>
                         <Badge variant="outline">{enrollment.status}</Badge>
                       </div>
                     ))}
