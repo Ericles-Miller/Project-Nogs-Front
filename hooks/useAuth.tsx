@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, createContext, useContext } from 'react';
-import { apiService, CreateUserRequest, LoginRequest, AuthResponse } from '../lib/api';
+import { apiService, CreateUserRequest, LoginRequest, AuthResponse, NgoAuthResponse } from '../lib/api';
 
 interface User {
   id: string;
@@ -15,6 +15,7 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (credentials: LoginRequest) => Promise<{ success: boolean; error?: string }>;
+  loginNgo: (credentials: LoginRequest) => Promise<{ success: boolean; error?: string }>;
   register: (userData: CreateUserRequest) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
@@ -103,6 +104,44 @@ export function AuthProvider({ children }: { children: any }) {
     }
   };
 
+  const loginNgo = async (credentials: LoginRequest) => {
+    try {
+      const response = await apiService.loginNgo(credentials);
+      
+      if (response.error) {
+        return { success: false, error: response.error };
+      }
+
+      if (response.data) {
+        const { accessToken } = response.data;
+        
+        // Para ONGs, precisamos decodificar o token para obter informações do usuário
+        // Em um sistema real, você faria isso no backend ou usaria um endpoint específico
+        const user = {
+          id: 'ngo-id', // Será substituído pelo ID real do token
+          name: 'ONG', // Será substituído pelo nome real da ONG
+          email: credentials.email,
+          userType: 'ngo'
+        };
+        
+        setToken(accessToken);
+        setUser(user);
+        
+        localStorage.setItem('auth_token', accessToken);
+        localStorage.setItem('auth_user', JSON.stringify(user));
+        
+        return { success: true };
+      }
+      
+      return { success: false, error: 'Resposta inválida do servidor' };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Erro ao fazer login da ONG' 
+      };
+    }
+  };
+
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -117,6 +156,7 @@ export function AuthProvider({ children }: { children: any }) {
     token,
     isLoading,
     login,
+    loginNgo,
     register,
     logout,
   };

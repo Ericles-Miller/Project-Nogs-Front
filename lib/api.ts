@@ -33,6 +33,11 @@ export interface AuthResponse {
   };
 }
 
+export interface NgoAuthResponse {
+  message: string;
+  accessToken: string;
+}
+
 class ApiService {
   private async request<T>(
     endpoint: string,
@@ -76,6 +81,13 @@ class ApiService {
 
   async login(credentials: LoginRequest): Promise<ApiResponse<AuthResponse>> {
     return this.request<AuthResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    });
+  }
+
+  async loginNgo(credentials: LoginRequest): Promise<ApiResponse<NgoAuthResponse>> {
+    return this.request<NgoAuthResponse>('/ngos/login', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
@@ -207,6 +219,31 @@ class ApiService {
     } catch (error) {
       return { error: error instanceof Error ? error.message : 'Erro de conexão' };
     }
+  }
+
+  async createProject(projectData: {
+    title: string;
+    description: string;
+    location: string;
+    cause: string;
+    startDate: string;
+    endDate: string;
+    maxVolunteers: number;
+  }, token: string): Promise<ApiResponse> {
+    if (!token) {
+      return { error: 'Token de autenticação é obrigatório para criar projetos' };
+    }
+
+    const headers: any = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+    
+    return this.request('/projects', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(projectData),
+    });
   }
 }
 
