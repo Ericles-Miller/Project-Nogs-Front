@@ -28,6 +28,17 @@ interface Campaign {
   createdAt: string;
 }
 
+// Interface para as ONGs
+interface Ngo {
+  id: string;
+  organizationName: string;
+  description: string;
+  city: string;
+  state: string;
+  causes: string[];
+  areas: string[];
+}
+
 const categorias = [
   "campaign",
   "opportunity"
@@ -35,6 +46,7 @@ const categorias = [
 
 export default function CampanhasPage() {
   const [campanhas, setCampanhas] = useState<Campaign[]>([])
+  const [ngos, setNgos] = useState<{ [key: string]: Ngo }>({})
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
   const [filtros, setFiltros] = useState({
@@ -62,12 +74,37 @@ export default function CampanhasPage() {
 
       if (response.data) {
         setCampanhas(response.data)
+        
+        // Buscar informações das ONGs para cada campanha
+        await fetchNgosInfo(response.data)
       }
     } catch (err) {
       setError("Erro ao carregar campanhas. Tente novamente.")
       console.error("Erro ao buscar campanhas:", err)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const fetchNgosInfo = async (campanhasData: Campaign[]) => {
+    try {
+      const ngoIds = [...new Set(campanhasData.map(c => c.ngoId))]
+      const ngoData: { [key: string]: Ngo } = {}
+      
+      for (const ngoId of ngoIds) {
+        try {
+          const ngoResponse = await apiService.getNgoById(ngoId)
+          if (ngoResponse.data) {
+            ngoData[ngoId] = ngoResponse.data
+          }
+        } catch (error) {
+          console.error(`Erro ao buscar ONG ${ngoId}:`, error)
+        }
+      }
+      
+      setNgos(ngoData)
+    } catch (error) {
+      console.error("Erro ao buscar informações das ONGs:", error)
     }
   }
 
@@ -367,7 +404,7 @@ export default function CampanhasPage() {
                     </div>
 
                                          <div className="text-sm text-muted-foreground">
-                       <strong>Organização:</strong> {campanha.ngoId}
+                       <strong>Organização:</strong> {ngos[campanha.ngoId]?.organizationName || 'ONG não encontrada'}
                      </div>
                   </div>
 
