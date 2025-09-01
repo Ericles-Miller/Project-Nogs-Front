@@ -2,8 +2,9 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,7 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, MapPin, Calendar, Edit, Save, X, CheckCircle, Loader2 } from "lucide-react"
+import { ArrowLeft, MapPin, Calendar, Edit, Save, X, CheckCircle, Loader2, User, Target, Award, Clock } from "lucide-react"
 
 const estados = [
   "AC",
@@ -47,24 +48,27 @@ const estados = [
   "TO",
 ]
 
-// Dados mockados do usuário
+// Dados iniciais vazios (serão preenchidos pela API)
 const dadosIniciais = {
-  nome: "Maria Silva",
-  email: "maria.silva@email.com",
-  cidade: "São Paulo",
-  estado: "SP",
-  biografia:
-    "Apaixonada por educação e voluntariado. Acredito que pequenas ações podem gerar grandes transformações na sociedade. Trabalho como professora há 10 anos e dedico meu tempo livre para ajudar comunidades carentes.",
-  telefone: "(11) 99999-8888",
-  dataIngresso: "Janeiro 2024",
-  avatar: "/diverse-female-avatars.png",
+  nome: "",
+  email: "",
+  cidade: "",
+  estado: "",
+  biografia: "",
+  telefone: "",
+  dataIngresso: "",
+  avatar: "",
+  skills: [],
+  experience: "",
+  preferredCauses: [],
+  userType: ""
 }
 
 const estatisticasPerfil = {
-  horasVoluntariado: 48,
-  projetosParticipados: 7,
-  doacoesRealizadas: 8,
-  pessoasImpactadas: 127,
+  horasVoluntariado: 0,
+  projetosParticipados: 0,
+  doacoesRealizadas: 0,
+  pessoasImpactadas: 0,
 }
 
 const interessesDisponiveis = [
@@ -78,18 +82,86 @@ const interessesDisponiveis = [
   "Animais",
   "Tecnologia",
   "Arte",
+  "Combate à Fome",
+  "Religião"
 ]
 
 export default function PerfilPage() {
+  const router = useRouter()
   const [dadosUsuario, setDadosUsuario] = useState(dadosIniciais)
-  const [interessesSelecionados, setInteressesSelecionados] = useState([
-    "Educação",
-    "Meio Ambiente",
-    "Assistência Social",
-  ])
+  const [interessesSelecionados, setInteressesSelecionados] = useState([])
   const [modoEdicao, setModoEdicao] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true)
   const [success, setSuccess] = useState("")
+  const [error, setError] = useState("")
+
+  // Carregar dados do perfil ao montar o componente
+  useEffect(() => {
+    loadUserProfile()
+  }, [])
+
+  const loadUserProfile = async () => {
+    const token = localStorage.getItem('auth_token')
+    
+    if (!token) {
+      console.log("❌ Token não encontrado, redirecionando para login")
+      router.push('/login')
+      return
+    }
+
+    try {
+      console.log("🔄 Carregando perfil do usuário...")
+      
+      const response = await fetch('http://localhost:3333/api/users/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      })
+
+      console.log("📥 Resposta do perfil:", response.status, response.statusText)
+
+      if (response.ok) {
+        const userData = await response.json()
+        console.log("📋 Dados do usuário carregados:", userData)
+        
+        // Mapear dados da API para o formato do frontend
+        const mappedData = {
+          nome: userData.name || "",
+          email: userData.email || "",
+          cidade: userData.city || "",
+          estado: userData.state || "",
+          biografia: userData.experience || "",
+          telefone: "", // Não existe no backend
+          dataIngresso: userData.createdAt ? new Date(userData.createdAt).toLocaleDateString('pt-BR', { 
+            year: 'numeric', 
+            month: 'long' 
+          }) : "",
+          avatar: "", // Não existe no backend
+          skills: userData.skills || [],
+          experience: userData.experience || "",
+          preferredCauses: userData.preferredCauses || [],
+          userType: userData.userType || ""
+        }
+
+        setDadosUsuario(mappedData)
+        setInteressesSelecionados(userData.preferredCauses || [])
+        
+        console.log("✅ Perfil carregado com sucesso")
+      } else {
+        const errorData = await response.json()
+        console.error("❌ Erro ao carregar perfil:", errorData)
+        setError("Erro ao carregar perfil. Tente novamente.")
+      }
+    } catch (error) {
+      console.error("💥 Erro na requisição:", error)
+      setError("Erro ao conectar com o servidor.")
+    } finally {
+      setIsLoadingProfile(false)
+    }
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -150,12 +222,29 @@ export default function PerfilPage() {
           </Link>
         </div>
 
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         {success && (
           <Alert className="mb-6 border-green-200 bg-green-50 text-green-800">
             <CheckCircle className="h-4 w-4" />
             <AlertDescription>{success}</AlertDescription>
           </Alert>
         )}
+
+        {/* Loading state */}
+        {isLoadingProfile && (
+          <div className="text-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p>Carregando perfil...</p>
+          </div>
+        )}
+
+        {/* Conteúdo principal (só mostra quando não está carregando) */}
+        {!isLoadingProfile && (
 
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Sidebar - Informações Básicas */}
@@ -230,6 +319,54 @@ export default function PerfilPage() {
                       {interesse}
                     </Badge>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Habilidades */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Suas Habilidades</CardTitle>
+                <CardDescription>Habilidades que você possui</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {dadosUsuario.skills && dadosUsuario.skills.length > 0 ? (
+                    dadosUsuario.skills.map((skill) => (
+                      <Badge key={skill} variant="outline" className="text-primary border-primary">
+                        {skill}
+                      </Badge>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground text-sm">Nenhuma habilidade cadastrada</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Tipo de Usuário */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Tipo de Usuário</CardTitle>
+                <CardDescription>Sua categoria na plataforma</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2">
+                  {dadosUsuario.userType === 'ngo' ? (
+                    <>
+                      <Target className="h-4 w-4 text-blue-600" />
+                      <Badge variant="outline" className="text-blue-600 border-blue-600">
+                        Organização (ONG)
+                      </Badge>
+                    </>
+                  ) : (
+                    <>
+                      <User className="h-4 w-4 text-green-600" />
+                      <Badge variant="outline" className="text-green-600 border-green-600">
+                        Voluntário
+                      </Badge>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -424,6 +561,7 @@ export default function PerfilPage() {
             </Card>
           </div>
         </div>
+        )}
       </div>
     </div>
   )
