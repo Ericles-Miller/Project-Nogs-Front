@@ -95,6 +95,7 @@ export default function ProjetoDetalhePage() {
   const [projeto, setProjeto] = useState<ProjectDetail | null>(null)
   const [ngoData, setNgoData] = useState<Ngo | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isJoining, setIsJoining] = useState(false)
   const [error, setError] = useState("")
   const [inscrito, setInscrito] = useState(false)
   const [success, setSuccess] = useState("")
@@ -105,6 +106,24 @@ export default function ProjetoDetalhePage() {
       fetchProjetoDetalhes(params.id as string)
     }
   }, [params.id])
+
+  // Verificar se o usuário já está inscrito neste projeto
+  useEffect(() => {
+    if (projeto?.id) {
+      const savedJoinedProjects = localStorage.getItem('joined_projects')
+      if (savedJoinedProjects) {
+        try {
+          const projectIds = JSON.parse(savedJoinedProjects)
+          if (projectIds.includes(projeto.id)) {
+            setInscrito(true)
+            console.log('✅ Usuário já inscrito neste projeto:', projeto.id)
+          }
+        } catch (error) {
+          console.error('Erro ao verificar projetos inscritos:', error)
+        }
+      }
+    }
+  }, [projeto?.id])
 
   const fetchProjetoDetalhes = async (projectId: string) => {
     try {
@@ -155,19 +174,86 @@ export default function ProjetoDetalhePage() {
   }
 
   const handleInscricao = async () => {
-    setIsLoading(true)
-    setSuccess("")
+    const token = localStorage.getItem('auth_token')
+    const userData = localStorage.getItem('auth_user')
+    
+    if (!token) {
+      alert('Você precisa estar logado para participar de projetos. Faça login primeiro.')
+      return
+    }
+
+    if (!userData) {
+      alert('Erro ao verificar dados do usuário. Faça login novamente.')
+      return
+    }
 
     try {
-      // Simular chamada de API
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const user = JSON.parse(userData)
+      
+      if (user.userType !== 'volunteer') {
+        alert('Apenas voluntários podem se inscrever em projetos. ONGs não podem participar como voluntários.')
+        return
+      }
+    } catch (err) {
+      console.error('Erro ao verificar tipo de usuário:', err)
+      alert('Erro ao verificar dados do usuário. Faça login novamente.')
+      return
+    }
 
+    if (!projeto) return
+
+    try {
+      setIsJoining(true)
+      setError("")
+      setSuccess("")
+
+      const response = await apiService.joinProject(
+        projeto.id, 
+        'pending', 
+        'Interesse em participar do projeto', 
+        token
+      )
+      
+      if (response.error) {
+        alert(`Erro ao participar: ${response.error}`)
+        return
+      }
+
+      // Se chegou aqui, foi sucesso (status 201 ou 200)
+      console.log('✅ Inscrição realizada com sucesso para o projeto:', projeto.id)
+      
+      // Atualizar estado local
       setInscrito(true)
-      setSuccess("Inscrição realizada com sucesso! Você receberá mais informações por email.")
+      
+      // Atualizar localStorage para sincronizar com a página de listagem
+      const savedJoinedProjects = localStorage.getItem('joined_projects')
+      let projectIds = []
+      if (savedJoinedProjects) {
+        try {
+          projectIds = JSON.parse(savedJoinedProjects)
+        } catch (error) {
+          projectIds = []
+        }
+      }
+      
+      if (!projectIds.includes(projeto.id)) {
+        projectIds.push(projeto.id)
+        localStorage.setItem('joined_projects', JSON.stringify(projectIds))
+        console.log('💾 Projeto inscrito salvo no localStorage:', projeto.id)
+      }
+      
+      setSuccess("🎉 Parabéns! Você foi inscrito no projeto com sucesso!")
+      
+      // Limpar mensagem de sucesso após 8 segundos
+      setTimeout(() => {
+        setSuccess("")
+      }, 8000)
+      
     } catch (error) {
-      console.error("Erro na inscrição:", error)
+      console.error("Erro ao participar do projeto:", error)
+      alert('Erro ao participar do projeto. Tente novamente.')
     } finally {
-      setIsLoading(false)
+      setIsJoining(false)
     }
   }
 
@@ -392,13 +478,13 @@ export default function ProjetoDetalhePage() {
                 </div>
 
                 {inscrito ? (
-                  <Button disabled className="w-full">
+                  <Button disabled className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 cursor-not-allowed shadow-sm">
                     <CheckCircle className="mr-2 h-4 w-4" />
-                    Inscrito com Sucesso
+                    ✓ Inscrito com Sucesso
                   </Button>
                 ) : (
-                  <Button onClick={handleInscricao} disabled={isLoading} className="w-full">
-                    {isLoading ? (
+                  <Button onClick={handleInscricao} disabled={isJoining} className="w-full bg-primary hover:bg-primary/90">
+                    {isJoining ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Inscrevendo...
