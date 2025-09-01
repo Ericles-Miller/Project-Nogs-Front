@@ -46,6 +46,12 @@ const categorias = [
 ]
 
 export default function CampanhasPage() {
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+  
   const [campanhas, setCampanhas] = useState<Campaign[]>([])
   const [ngos, setNgos] = useState<{ [key: string]: Ngo }>({})
 
@@ -79,8 +85,6 @@ export default function CampanhasPage() {
         
         // Buscar informações das ONGs para cada campanha
         await fetchNgosInfo(response.data)
-        
-
       }
     } catch (err) {
       setError("Erro ao carregar campanhas. Tente novamente.")
@@ -129,6 +133,11 @@ export default function CampanhasPage() {
   })
 
   const formatarMoeda = (valor: number) => {
+    // Tratar valores undefined, null ou NaN
+    if (valor === undefined || valor === null || isNaN(valor)) {
+      return "R$ 0,00"
+    }
+    
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
@@ -154,6 +163,10 @@ export default function CampanhasPage() {
   
   // Calcular total de doadores usando o campo numberOfDonations das campanhas
   const totalDoadores = campanhas.reduce((total, campanha) => total + (campanha.numberOfDonations || 0), 0)
+
+  if (!mounted) {
+    return null
+  }
 
   if (isLoading) {
     return (

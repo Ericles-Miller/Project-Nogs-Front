@@ -140,7 +140,6 @@ export default function CampaignDetailPage() {
       }
 
       // Considerar sucesso se não houver erro
-      console.log("✅ Doação realizada com sucesso!")
       setDonationSuccess(true)
       setShowDonationForm(false)
       setDonationForm({
@@ -166,6 +165,11 @@ export default function CampaignDetailPage() {
   }
 
   const formatarMoeda = (valor: number) => {
+    // Tratar valores undefined, null ou NaN
+    if (valor === undefined || valor === null || isNaN(valor)) {
+      return "R$ 0,00"
+    }
+    
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
