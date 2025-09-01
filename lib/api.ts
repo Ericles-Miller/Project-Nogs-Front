@@ -106,6 +106,30 @@ class ApiService {
     });
   }
 
+  async getProjectById(id: string, token?: string): Promise<ApiResponse> {
+    const headers: any = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    return this.request(`/projects/${id}`, {
+      method: 'GET',
+      headers,
+    });
+  }
+
+  async getNgoById(id: string, token?: string): Promise<ApiResponse> {
+    const headers: any = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    return this.request(`/ngos/${id}`, {
+      method: 'GET',
+      headers,
+    });
+  }
+
   async getCampaigns(token?: string): Promise<ApiResponse> {
     const headers: any = {};
     if (token) {

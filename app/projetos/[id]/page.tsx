@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { Navigation } from "@/components/navigation"
@@ -9,49 +9,150 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
-import { MapPin, Clock, Users, ArrowLeft, CheckCircle, Building, Calendar, Target, Heart, Loader2 } from "lucide-react"
+import { MapPin, Clock, Users, ArrowLeft, CheckCircle, Building, Calendar, Target, Heart, Loader2, AlertCircle } from "lucide-react"
+import { apiService } from "@/lib/api"
 
-// Dados mockados - em uma aplicação real, isso viria de uma API
-const projetos = [
-  {
-    id: 1,
-    titulo: "Educação para Todos",
-    descricao: "Projeto de alfabetização para adultos em comunidades carentes. Precisamos de professores voluntários.",
-    descricaoCompleta:
-      "O projeto Educação para Todos tem como objetivo combater o analfabetismo em comunidades carentes da região metropolitana de São Paulo. Oferecemos aulas de alfabetização para adultos que não tiveram oportunidade de estudar na idade adequada. As aulas acontecem aos sábados, em um ambiente acolhedor e respeitoso, onde cada aluno é tratado com dignidade e carinho. Nossos voluntários recebem treinamento adequado e material didático para desenvolver as atividades. Além da alfabetização básica, também oferecemos noções de matemática e cidadania.",
-    cidade: "São Paulo",
-    estado: "SP",
-    causa: "Educação",
-    horasSemana: "4h/semana",
-    voluntarios: 12,
-    maxVoluntarios: 20,
-    requisitos: ["Ensino médio completo", "Paciência para ensinar", "Disponibilidade aos sábados"],
-    organizacao: "Instituto Educar",
-    status: "Ativo",
-    dataInicio: "15/03/2024",
-    dataFim: "15/12/2024",
-    endereco: "Rua das Flores, 123 - Vila Esperança, São Paulo - SP",
-    contato: "contato@institutoeducar.org.br",
-    telefone: "(11) 9999-8888",
-    beneficiarios: 45,
-    impacto: "Já alfabetizamos mais de 200 pessoas desde o início do projeto",
-    atividades: [
-      "Aulas de alfabetização básica",
-      "Ensino de matemática fundamental",
-      "Atividades de cidadania",
-      "Acompanhamento individual dos alunos",
-      "Eventos culturais e educativos",
-    ],
-  },
-]
+// Interfaces para os dados do backend
+interface Ngo {
+  id: string;
+  organizationName: string;
+  cnpj: string;
+  description: string;
+  email: string;
+  city: string;
+  state: string;
+  causes: string[];
+  areas: string[];
+  skills: string[];
+  preferredCauses: string[];
+  projects: string[];
+  campaigns: Array<{
+    id: string;
+    title: string;
+    description: string;
+    goalAmount: number;
+    currentAmount: number;
+    startDate: string;
+    endDate: string;
+    status: string;
+    ngo: string;
+    ngoId: string;
+    createdAt: string;
+  }>;
+  createdAt: string;
+}
+
+interface Enrollment {
+  id: string;
+  volunteer: {
+    id: string;
+    name: string;
+    email: string;
+    city: string;
+    state: string;
+    userType: string;
+    skills: string[];
+    experience: string;
+    preferredCauses: string[];
+    projects: string[];
+    campaigns: string[];
+    enrollments: string[];
+    ratingsGiven: string[];
+    donations: string[];
+    createdAt: string;
+  };
+  volunteerId: string;
+  project: string;
+  projectId: string;
+  status: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ProjectDetail {
+  id: string;
+  title: string;
+  description: string;
+  location: string;
+  cause: string;
+  startDate: string;
+  endDate: string;
+  maxVolunteers: number;
+  status: string;
+  ngo: Ngo;
+  ngoId: string;
+  enrollments: Enrollment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Array vazio - será preenchido pela API
+const projetos: ProjectDetail[] = []
 
 export default function ProjetoDetalhePage() {
   const params = useParams()
-  const [isLoading, setIsLoading] = useState(false)
+  const [projeto, setProjeto] = useState<ProjectDetail | null>(null)
+  const [ngoData, setNgoData] = useState<Ngo | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
   const [inscrito, setInscrito] = useState(false)
   const [success, setSuccess] = useState("")
 
-  const projeto = projetos.find((p) => p.id === Number(params.id))
+  // Buscar detalhes do projeto da API
+  useEffect(() => {
+    if (params.id) {
+      fetchProjetoDetalhes(params.id as string)
+    }
+  }, [params.id])
+
+  const fetchProjetoDetalhes = async (projectId: string) => {
+    try {
+      setIsLoading(true)
+      setError("")
+      
+      // Pegar token do localStorage se disponível
+      const token = localStorage.getItem('auth_token')
+      
+      const response = await apiService.getProjectById(projectId, token || undefined)
+      
+      if (response.error) {
+        setError(response.error)
+        return
+      }
+
+      if (response.data) {
+        setProjeto(response.data)
+        
+        // Se o projeto tem ngoId, buscar dados da ONG
+        if (response.data.ngoId) {
+          await fetchNgoData(response.data.ngoId, token || undefined)
+        }
+      }
+    } catch (err) {
+      setError("Erro ao carregar detalhes do projeto. Tente novamente.")
+      console.error("Erro ao buscar projeto:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const fetchNgoData = async (ngoId: string, token?: string) => {
+    try {
+      const ngoResponse = await apiService.getNgoById(ngoId, token || undefined)
+      
+      if (ngoResponse.error) {
+        console.warn("Erro ao buscar dados da ONG:", ngoResponse.error)
+        return
+      }
+
+      if (ngoResponse.data) {
+        setNgoData(ngoResponse.data)
+      }
+    } catch (err) {
+      console.warn("Erro ao buscar dados da ONG:", err)
+    }
+  }
 
   const handleInscricao = async () => {
     setIsLoading(true)
@@ -68,6 +169,48 @@ export default function ProjetoDetalhePage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
+              <p className="text-lg text-muted-foreground">Carregando detalhes do projeto...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center">
+            <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
+            <h1 className="text-2xl font-bold text-foreground mb-4">Erro ao carregar projeto</h1>
+            <p className="text-muted-foreground mb-6">{error}</p>
+            <div className="space-x-4">
+              <Button onClick={() => fetchProjetoDetalhes(params.id as string)}>
+                Tentar Novamente
+              </Button>
+              <Link href="/projetos">
+                <Button variant="outline">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Voltar aos Projetos
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (!projeto) {
@@ -107,7 +250,7 @@ export default function ProjetoDetalhePage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div className="flex items-center gap-3">
               <Badge variant="secondary" className="text-sm">
-                {projeto.causa}
+                {projeto.cause}
               </Badge>
               <Badge variant="outline" className="text-green-600 border-green-600">
                 {projeto.status}
@@ -115,28 +258,26 @@ export default function ProjetoDetalhePage() {
             </div>
           </div>
 
-          <h1 className="font-playfair font-bold text-3xl md:text-4xl text-foreground mb-4">{projeto.titulo}</h1>
+          <h1 className="font-playfair font-bold text-3xl md:text-4xl text-foreground mb-4">{projeto.title}</h1>
 
           <div className="flex flex-wrap items-center gap-6 text-muted-foreground">
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
-              <span>
-                {projeto.cidade}, {projeto.estado}
-              </span>
+              <span>{projeto.location}</span>
             </div>
             <div className="flex items-center gap-2">
               <Building className="h-4 w-4" />
-              <span>{projeto.organizacao}</span>
+              <span>{ngoData?.organizationName || projeto.ngo?.organizationName || 'ONG não informada'}</span>
             </div>
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               <span>
-                {projeto.voluntarios}/{projeto.maxVoluntarios} voluntários
+                {projeto.enrollments?.length || 0}/{projeto.maxVolunteers} voluntários
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              <span>{projeto.horasSemana}</span>
+              <Calendar className="h-4 w-4" />
+              <span>{new Date(projeto.startDate).toLocaleDateString('pt-BR')} - {new Date(projeto.endDate).toLocaleDateString('pt-BR')}</span>
             </div>
           </div>
         </div>
@@ -157,43 +298,70 @@ export default function ProjetoDetalhePage() {
                 <CardTitle>Sobre o Projeto</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground leading-relaxed">{projeto.descricaoCompleta}</p>
+                <p className="text-muted-foreground leading-relaxed">{projeto.description}</p>
               </CardContent>
             </Card>
 
-            {/* Atividades */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Atividades Desenvolvidas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {projeto.atividades.map((atividade, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <CheckCircle className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                      <span className="text-muted-foreground">{atividade}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
+            {/* Informações da ONG */}
+            {(ngoData || projeto.ngo) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Organização Responsável</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div>
+                      <strong className="text-foreground">Nome:</strong> {ngoData?.organizationName || projeto.ngo?.organizationName}
+                    </div>
+                    {(ngoData?.description || projeto.ngo?.description) && (
+                      <div>
+                        <strong className="text-foreground">Descrição:</strong> {ngoData?.description || projeto.ngo?.description}
+                      </div>
+                    )}
+                    <div>
+                      <strong className="text-foreground">Localização:</strong> {ngoData?.city || projeto.ngo?.city}, {ngoData?.state || projeto.ngo?.state}
+                    </div>
+                    <div>
+                      <strong className="text-foreground">Email:</strong> {ngoData?.email || projeto.ngo?.email}
+                    </div>
+                    {ngoData?.cnpj && (
+                      <div>
+                        <strong className="text-foreground">CNPJ:</strong> {ngoData.cnpj}
+                      </div>
+                    )}
+                    {ngoData?.causes && ngoData.causes.length > 0 && (
+                      <div>
+                        <strong className="text-foreground">Causas:</strong> {ngoData.causes.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-            {/* Requisitos */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Requisitos para Participar</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {projeto.requisitos.map((requisito, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <Target className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                      <span className="text-muted-foreground">{requisito}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
+            {/* Voluntários Inscritos */}
+            {projeto.enrollments && projeto.enrollments.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Voluntários Inscritos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {projeto.enrollments.slice(0, 5).map((enrollment) => (
+                      <div key={enrollment.id} className="flex items-center justify-between p-2 bg-muted rounded">
+                        <span className="font-medium">{enrollment.volunteer.name}</span>
+                        <Badge variant="outline">{enrollment.status}</Badge>
+                      </div>
+                    ))}
+                    {projeto.enrollments.length > 5 && (
+                      <p className="text-sm text-muted-foreground text-center mt-2">
+                        +{projeto.enrollments.length - 5} outros voluntários
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Sidebar */}
@@ -212,13 +380,13 @@ export default function ProjetoDetalhePage() {
                   <div className="flex justify-between text-sm">
                     <span>Progresso de Voluntários</span>
                     <span>
-                      {projeto.voluntarios}/{projeto.maxVoluntarios}
+                      {projeto.enrollments?.length || 0}/{projeto.maxVolunteers}
                     </span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-2">
                     <div
                       className="bg-primary h-2 rounded-full"
-                      style={{ width: `${(projeto.voluntarios / projeto.maxVoluntarios) * 100}%` }}
+                      style={{ width: `${((projeto.enrollments?.length || 0) / projeto.maxVolunteers) * 100}%` }}
                     />
                   </div>
                 </div>
@@ -258,7 +426,7 @@ export default function ProjetoDetalhePage() {
                     <span className="font-medium">Período</span>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {projeto.dataInicio} até {projeto.dataFim}
+                    {new Date(projeto.startDate).toLocaleDateString('pt-BR')} até {new Date(projeto.endDate).toLocaleDateString('pt-BR')}
                   </p>
                 </div>
 
@@ -267,9 +435,9 @@ export default function ProjetoDetalhePage() {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Endereço</span>
+                    <span className="font-medium">Localização</span>
                   </div>
-                  <p className="text-sm text-muted-foreground">{projeto.endereco}</p>
+                  <p className="text-sm text-muted-foreground">{projeto.location}</p>
                 </div>
 
                 <Separator />
@@ -277,28 +445,38 @@ export default function ProjetoDetalhePage() {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <Users className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Beneficiários</span>
+                    <span className="font-medium">Voluntários</span>
                   </div>
-                  <p className="text-sm text-muted-foreground">{projeto.beneficiarios} pessoas atendidas</p>
+                  <p className="text-sm text-muted-foreground">{projeto.enrollments?.length || 0} inscritos</p>
                 </div>
 
                 <Separator />
 
                 <div>
                   <span className="font-medium">Contato</span>
-                  <p className="text-sm text-muted-foreground mt-1">{projeto.contato}</p>
-                  <p className="text-sm text-muted-foreground">{projeto.telefone}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{ngoData?.email || projeto.ngo?.email || 'Email não informado'}</p>
+                  <p className="text-sm text-muted-foreground">{ngoData?.city || projeto.ngo?.city}, {ngoData?.state || projeto.ngo?.state}</p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Impacto */}
+            {/* Informações do Projeto */}
             <Card>
               <CardHeader>
-                <CardTitle>Nosso Impacto</CardTitle>
+                <CardTitle>Informações do Projeto</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">{projeto.impacto}</p>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <div>
+                    <strong className="text-foreground">ID:</strong> {projeto.id}
+                  </div>
+                  <div>
+                    <strong className="text-foreground">Criado em:</strong> {new Date(projeto.createdAt).toLocaleDateString('pt-BR')}
+                  </div>
+                  <div>
+                    <strong className="text-foreground">Última atualização:</strong> {new Date(projeto.updatedAt).toLocaleDateString('pt-BR')}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -307,3 +485,4 @@ export default function ProjetoDetalhePage() {
     </div>
   )
 }
+
