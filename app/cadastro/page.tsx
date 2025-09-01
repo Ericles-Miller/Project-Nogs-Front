@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,7 +12,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Heart, Eye, EyeOff, Loader2 } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Heart, Eye, EyeOff, Loader2, Plus, X } from "lucide-react"
+import { useAuth } from "@/hooks/useAuth"
 
 const estados = [
   "AC",
@@ -43,7 +47,37 @@ const estados = [
   "TO",
 ]
 
+const causas = [
+  "Educação",
+  "Saúde",
+  "Meio Ambiente",
+  "Direitos Humanos",
+  "Combate à Fome",
+  "Assistência Social",
+  "Cultura",
+  "Esporte",
+  "Tecnologia",
+  "Outras"
+]
+
+const habilidades = [
+  "Organização",
+  "Comunicação",
+  "Trabalho em Equipe",
+  "Liderança",
+  "Gestão de Projetos",
+  "Marketing Digital",
+  "Design",
+  "Programação",
+  "Idiomas",
+  "Primeiros Socorros",
+  "Outras"
+]
+
 export default function CadastroPage() {
+  const router = useRouter()
+  const { register } = useAuth()
+  
   const [formData, setFormData] = useState({
     nome: "",
     email: "",
@@ -51,12 +85,19 @@ export default function CadastroPage() {
     confirmarSenha: "",
     cidade: "",
     estado: "",
+    userType: "volunteer" as "volunteer" | "ngo",
+    skills: [] as string[],
+    experience: "",
+    preferredCauses: [] as string[],
   })
+  
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [customSkill, setCustomSkill] = useState("")
+  const [customCause, setCustomCause] = useState("")
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -69,6 +110,52 @@ export default function CadastroPage() {
     setError("")
   }
 
+  const handleCheckboxChange = (name: string, value: string, checked: boolean) => {
+    setFormData((prev) => {
+      const currentArray = prev[name as keyof typeof prev] as string[]
+      if (checked) {
+        return { ...prev, [name]: [...currentArray, value] }
+      } else {
+        return { ...prev, [name]: currentArray.filter(item => item !== value) }
+      }
+    })
+    setError("")
+  }
+
+  const addCustomSkill = () => {
+    if (customSkill.trim() && !formData.skills.includes(customSkill.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        skills: [...prev.skills, customSkill.trim()]
+      }))
+      setCustomSkill("")
+    }
+  }
+
+  const removeSkill = (skill: string) => {
+    setFormData(prev => ({
+      ...prev,
+      skills: prev.skills.filter(s => s !== skill)
+    }))
+  }
+
+  const addCustomCause = () => {
+    if (customCause.trim() && !formData.preferredCauses.includes(customCause.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        preferredCauses: [...prev.preferredCauses, customCause.trim()]
+      }))
+      setCustomCause("")
+    }
+  }
+
+  const removeCause = (cause: string) => {
+    setFormData(prev => ({
+      ...prev,
+      preferredCauses: prev.preferredCauses.filter(c => c !== cause)
+    }))
+  }
+
   const validateForm = () => {
     if (
       !formData.nome ||
@@ -78,7 +165,7 @@ export default function CadastroPage() {
       !formData.cidade ||
       !formData.estado
     ) {
-      return "Por favor, preencha todos os campos."
+      return "Por favor, preencha todos os campos obrigatórios."
     }
 
     if (!formData.email.includes("@")) {
@@ -102,28 +189,78 @@ export default function CadastroPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log("🚀 Formulário submetido!")
+    
     setIsLoading(true)
     setError("")
     setSuccess("")
 
     const validationError = validateForm()
     if (validationError) {
+      console.log("❌ Erro de validação:", validationError)
       setError(validationError)
       setIsLoading(false)
       return
     }
 
     try {
-      // Simular chamada de API
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      const userData = {
+        name: formData.nome,
+        email: formData.email,
+        password: formData.senha,
+        city: formData.cidade,
+        state: formData.estado,
+        userType: formData.userType,
+        skills: formData.skills,
+        experience: formData.experience,
+        preferredCauses: formData.preferredCauses,
+      }
 
-      // Simular sucesso
-      setSuccess("Conta criada com sucesso! Redirecionando para o login...")
-      setTimeout(() => {
-        window.location.href = "/login"
-      }, 1500)
+      console.log("📤 Dados a serem enviados:", userData)
+      console.log("🌐 URL do endpoint:", 'http://localhost:3333/api/auth/register')
+
+      // Tentar usar o register do useAuth primeiro
+      try {
+        const result = await register(userData)
+        
+        if (result.success) {
+          setSuccess("Conta criada com sucesso! Redirecionando para o dashboard...")
+          setTimeout(() => {
+            router.push("/dashboard")
+          }, 1500)
+        } else {
+          setError(result.error || "Erro ao criar conta. Tente novamente.")
+        }
+      } catch (error) {
+        console.log("🔄 Fallback: chamada direta para a API")
+        
+        // Fallback: chamada direta para a API do backend
+        const response = await fetch('http://localhost:3333/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'accept': '*/*'
+          },
+          body: JSON.stringify(userData),
+        })
+
+        console.log("📥 Resposta do servidor:", response.status, response.statusText)
+
+        const result = await response.json()
+        console.log("📋 Dados da resposta:", result)
+
+        if (response.ok) {
+          setSuccess("Conta criada com sucesso! Redirecionando para o dashboard...")
+          setTimeout(() => {
+            router.push("/dashboard")
+          }, 1500)
+        } else {
+          setError(result.message || `Erro ${response.status}: ${response.statusText}`)
+        }
+      }
     } catch (err) {
-      setError("Erro ao criar conta. Tente novamente.")
+      console.error("💥 Erro na requisição:", err)
+      setError("Erro ao conectar com o servidor. Verifique se o backend está rodando.")
     } finally {
       setIsLoading(false)
     }
@@ -224,6 +361,160 @@ export default function CadastroPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="userType">Tipo de Usuário</Label>
+                  <Select
+                    value={formData.userType}
+                    onValueChange={(value) => handleSelectChange("userType", value as "volunteer" | "ngo")}
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo de usuário" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="volunteer">Voluntário</SelectItem>
+                      <SelectItem value="ngo">ONG</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Habilidades (opcional)</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {habilidades.map((skill) => (
+                      <div key={skill} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`skill-${skill}`}
+                          checked={formData.skills.includes(skill)}
+                          onCheckedChange={(checked) => 
+                            handleCheckboxChange("skills", skill, checked as boolean)
+                          }
+                          disabled={isLoading}
+                        />
+                        <Label htmlFor={`skill-${skill}`} className="text-sm">
+                          {skill}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="flex gap-2 mt-2">
+                    <Input
+                      placeholder="Adicionar habilidade personalizada"
+                      value={customSkill}
+                      onChange={(e) => setCustomSkill(e.target.value)}
+                      disabled={isLoading}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addCustomSkill}
+                      disabled={isLoading || !customSkill.trim()}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  {formData.skills.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {formData.skills.map((skill) => (
+                        <div
+                          key={skill}
+                          className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-md text-sm"
+                        >
+                          {skill}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 hover:bg-primary/20"
+                            onClick={() => removeSkill(skill)}
+                            disabled={isLoading}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="experience">Experiência (opcional)</Label>
+                  <Textarea
+                    id="experience"
+                    name="experience"
+                    placeholder="Conte um pouco sobre sua experiência em voluntariado ou projetos sociais..."
+                    value={formData.experience}
+                    onChange={(e) => setFormData(prev => ({ ...prev, experience: e.target.value }))}
+                    disabled={isLoading}
+                    rows={3}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Causas Preferidas (opcional)</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {causas.map((cause) => (
+                      <div key={cause} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`cause-${cause}`}
+                          checked={formData.preferredCauses.includes(cause)}
+                          onCheckedChange={(checked) => 
+                            handleCheckboxChange("preferredCauses", cause, checked as boolean)
+                          }
+                          disabled={isLoading}
+                        />
+                        <Label htmlFor={`cause-${cause}`} className="text-sm">
+                          {cause}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="flex gap-2 mt-2">
+                    <Input
+                      placeholder="Adicionar causa personalizada"
+                      value={customCause}
+                      onChange={(e) => setCustomCause(e.target.value)}
+                      disabled={isLoading}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addCustomCause}
+                      disabled={isLoading || !customCause.trim()}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  {formData.preferredCauses.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {formData.preferredCauses.map((cause) => (
+                        <div
+                          key={cause}
+                          className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-md text-sm"
+                        >
+                          {cause}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 hover:bg-primary/20"
+                            onClick={() => removeCause(cause)}
+                            disabled={isLoading}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
