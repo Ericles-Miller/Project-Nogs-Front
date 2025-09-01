@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
 import { apiService, CreateUserRequest, LoginRequest, AuthResponse, NgoAuthResponse } from '../lib/api';
 
 interface User {
@@ -17,7 +17,7 @@ interface AuthContextType {
   login: (credentials: LoginRequest) => Promise<{ success: boolean; error?: string }>;
   loginNgo: (credentials: LoginRequest) => Promise<{ success: boolean; error?: string }>;
   register: (userData: CreateUserRequest) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -142,13 +142,34 @@ export function AuthProvider({ children }: { children: any }) {
     }
   };
 
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
-    // Limpar também projetos inscritos ao fazer logout
-    localStorage.removeItem('joined_projects');
+  const logout = async () => {
+    try {
+      if (token) {
+        // Chamar o endpoint de logout da API
+        const response = await fetch('http://localhost:3333/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          console.log('✅ Logout realizado com sucesso na API');
+        } else {
+          console.log('⚠️ Erro na API, mas fazendo logout local');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro ao fazer logout na API:', error);
+    } finally {
+      // Sempre fazer logout local, independente do resultado da API
+      setToken(null);
+      setUser(null);
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      localStorage.removeItem('joined_projects');
+    }
   };
 
   const value: AuthContextType = {
