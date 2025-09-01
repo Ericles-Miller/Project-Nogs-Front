@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
@@ -9,158 +9,183 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Clock, Users, Search, Filter } from "lucide-react"
+import { MapPin, Clock, Users, Search, Filter, Loader2, Calendar } from "lucide-react"
+import { apiService } from "@/lib/api"
+
+// Interface para o projeto do backend
+interface Project {
+  id: string;
+  title: string;
+  description: string;
+  location: string;
+  cause: string;
+  startDate: string;
+  endDate: string;
+  maxVolunteers: number;
+  status: string;
+  ngoId: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 const causas = [
   "Educação",
   "Saúde",
-  "Meio Ambiente",
+  "Meio ambiente",
   "Assistência Social",
   "Cultura",
   "Esporte",
   "Direitos Humanos",
   "Animais",
+  "Combate à Fome",
+  "Tecnologia",
+  "Religião"
+]
+
+const statusOptions = [
+  "open",
+  "closed",
+  "in_progress",
+  "completed"
 ]
 
 const estados = [
-  "AC",
-  "AL",
-  "AP",
-  "AM",
-  "BA",
-  "CE",
-  "DF",
-  "ES",
-  "GO",
-  "MA",
-  "MT",
-  "MS",
-  "MG",
-  "PA",
-  "PB",
-  "PR",
-  "PE",
-  "PI",
-  "RJ",
-  "RN",
-  "RS",
-  "RO",
-  "RR",
-  "SC",
-  "SP",
-  "SE",
-  "TO",
-]
-
-const projetos = [
-  {
-    id: 1,
-    titulo: "Educação para Todos",
-    descricao: "Projeto de alfabetização para adultos em comunidades carentes. Precisamos de professores voluntários.",
-    cidade: "São Paulo",
-    estado: "SP",
-    causa: "Educação",
-    horasSemana: "4h/semana",
-    voluntarios: 12,
-    maxVoluntarios: 20,
-    requisitos: ["Ensino médio completo", "Paciência para ensinar", "Disponibilidade aos sábados"],
-    organizacao: "Instituto Educar",
-    status: "Ativo",
-  },
-  {
-    id: 2,
-    titulo: "Alimentação Solidária",
-    descricao: "Distribuição de refeições para pessoas em situação de rua. Ajude na preparação e distribuição.",
-    cidade: "Rio de Janeiro",
-    estado: "RJ",
-    causa: "Assistência Social",
-    horasSemana: "6h/semana",
-    voluntarios: 8,
-    maxVoluntarios: 15,
-    requisitos: ["Maior de 16 anos", "Disponibilidade aos domingos", "Disposição para trabalho em equipe"],
-    organizacao: "Ação Solidária RJ",
-    status: "Ativo",
-  },
-  {
-    id: 3,
-    titulo: "Preservação Ambiental",
-    descricao: "Plantio de árvores e limpeza de parques urbanos. Contribua para um meio ambiente mais saudável.",
-    cidade: "Belo Horizonte",
-    estado: "MG",
-    causa: "Meio Ambiente",
-    horasSemana: "3h/semana",
-    voluntarios: 15,
-    maxVoluntarios: 25,
-    requisitos: ["Disposição física", "Amor pela natureza", "Disponibilidade aos sábados"],
-    organizacao: "Verde Vida BH",
-    status: "Ativo",
-  },
-  {
-    id: 4,
-    titulo: "Apoio a Idosos",
-    descricao: "Companhia e atividades recreativas para idosos em asilos. Leve alegria e carinho para quem precisa.",
-    cidade: "Porto Alegre",
-    estado: "RS",
-    causa: "Assistência Social",
-    horasSemana: "2h/semana",
-    voluntarios: 6,
-    maxVoluntarios: 12,
-    requisitos: ["Paciência", "Empatia", "Disponibilidade flexível"],
-    organizacao: "Cuidar RS",
-    status: "Ativo",
-  },
-  {
-    id: 5,
-    titulo: "Biblioteca Comunitária",
-    descricao: "Organização e manutenção de biblioteca em comunidade carente. Ajude a promover o acesso à leitura.",
-    cidade: "Salvador",
-    estado: "BA",
-    causa: "Educação",
-    horasSemana: "5h/semana",
-    voluntarios: 4,
-    maxVoluntarios: 8,
-    requisitos: ["Amor pelos livros", "Organização", "Conhecimento básico de informática"],
-    organizacao: "Ler é Crescer",
-    status: "Ativo",
-  },
-  {
-    id: 6,
-    titulo: "Cuidado Animal",
-    descricao: "Cuidados com animais abandonados em ONG. Ajude na alimentação, limpeza e socialização.",
-    cidade: "Curitiba",
-    estado: "PR",
-    causa: "Animais",
-    horasSemana: "4h/semana",
-    voluntarios: 10,
-    maxVoluntarios: 18,
-    requisitos: ["Amor pelos animais", "Não ter medo de cães e gatos", "Disponibilidade aos fins de semana"],
-    organizacao: "Patinhas Carentes",
-    status: "Ativo",
-  },
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"
 ]
 
 export default function ProjetosPage() {
+  const [projetos, setProjetos] = useState<Project[]>([])
+  const [projetosFiltrados, setProjetosFiltrados] = useState<Project[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
   const [filtros, setFiltros] = useState({
     busca: "",
     cidade: "",
     estado: "Todos os estados",
     causa: "Todas as causas",
+    status: "Todos os status"
   })
+
+  // Buscar projetos da API
+  useEffect(() => {
+    fetchProjetos()
+  }, [])
+
+  const fetchProjetos = async () => {
+    try {
+      setIsLoading(true)
+      setError("")
+      
+      // Pegar token do localStorage se disponível
+      const token = localStorage.getItem('auth_token')
+      
+      const response = await apiService.getProjects(token || undefined)
+      
+      if (response.error) {
+        setError(response.error)
+        return
+      }
+
+      if (response.data) {
+        setProjetos(response.data)
+        setProjetosFiltrados(response.data)
+      }
+    } catch (err) {
+      setError("Erro ao carregar projetos. Tente novamente.")
+      console.error("Erro ao buscar projetos:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Aplicar filtros
+  useEffect(() => {
+    const projetosFiltrados = projetos.filter((projeto) => {
+      const matchBusca =
+        projeto.title.toLowerCase().includes(filtros.busca.toLowerCase()) ||
+        projeto.description.toLowerCase().includes(filtros.busca.toLowerCase())
+      
+      const matchCidade = !filtros.cidade || 
+        projeto.location.toLowerCase().includes(filtros.cidade.toLowerCase())
+      
+      const matchEstado = filtros.estado === "Todos os estados" || 
+        projeto.location.includes(filtros.estado)
+      
+      const matchCausa = filtros.causa === "Todas as causas" || 
+        projeto.cause === filtros.causa
+      
+      const matchStatus = filtros.status === "Todos os status" || 
+        projeto.status === filtros.status
+
+      return matchBusca && matchCidade && matchEstado && matchCausa && matchStatus
+    })
+
+    setProjetosFiltrados(projetosFiltrados)
+  }, [projetos, filtros])
 
   const handleFiltroChange = (campo: string, valor: string) => {
     setFiltros((prev) => ({ ...prev, [campo]: valor }))
   }
 
-  const projetosFiltrados = projetos.filter((projeto) => {
-    const matchBusca =
-      projeto.titulo.toLowerCase().includes(filtros.busca.toLowerCase()) ||
-      projeto.descricao.toLowerCase().includes(filtros.busca.toLowerCase())
-    const matchCidade = !filtros.cidade || projeto.cidade.toLowerCase().includes(filtros.cidade.toLowerCase())
-    const matchEstado = filtros.estado === "Todos os estados" || projeto.estado === filtros.estado
-    const matchCausa = filtros.causa === "Todas as causas" || projeto.causa === filtros.causa
+  const limparFiltros = () => {
+    setFiltros({
+      busca: "",
+      cidade: "",
+      estado: "Todos os estados",
+      causa: "Todas as causas",
+      status: "Todos os status"
+    })
+  }
 
-    return matchBusca && matchCidade && matchEstado && matchCausa
-  })
+  const formatarData = (dataString: string) => {
+    return new Date(dataString).toLocaleDateString('pt-BR')
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'open':
+        return 'bg-green-100 text-green-800 border-green-200'
+      case 'closed':
+        return 'bg-red-100 text-red-800 border-red-200'
+      case 'in_progress':
+        return 'bg-blue-100 text-blue-800 border-blue-200'
+      case 'completed':
+        return 'bg-gray-100 text-gray-800 border-gray-200'
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200'
+    }
+  }
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'open':
+        return 'Aberto'
+      case 'closed':
+        return 'Fechado'
+      case 'in_progress':
+        return 'Em Andamento'
+      case 'completed':
+        return 'Concluído'
+      default:
+        return status
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
+              <p className="text-lg text-muted-foreground">Carregando projetos...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -187,7 +212,7 @@ export default function ProjetosPage() {
             <CardDescription>Use os filtros para encontrar projetos específicos</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="busca">Buscar</Label>
                 <div className="relative">
@@ -245,6 +270,23 @@ export default function ProjetosPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select value={filtros.status} onValueChange={(value) => handleFiltroChange("status", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Todos os status">Todos os status</SelectItem>
+                    {statusOptions.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {getStatusText(status)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="flex justify-between items-center mt-4">
@@ -252,17 +294,27 @@ export default function ProjetosPage() {
                 {projetosFiltrados.length} projeto{projetosFiltrados.length !== 1 ? "s" : ""} encontrado
                 {projetosFiltrados.length !== 1 ? "s" : ""}
               </p>
-              <Button
-                variant="outline"
-                onClick={() =>
-                  setFiltros({ busca: "", cidade: "", estado: "Todos os estados", causa: "Todas as causas" })
-                }
-              >
+              <Button variant="outline" onClick={limparFiltros}>
                 Limpar Filtros
               </Button>
             </div>
           </CardContent>
         </Card>
+
+        {/* Mensagem de erro */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-800">{error}</p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fetchProjetos}
+              className="mt-2"
+            >
+              Tentar Novamente
+            </Button>
+          </div>
+        )}
 
         {/* Lista de Projetos */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -270,43 +322,39 @@ export default function ProjetosPage() {
             <Card key={projeto.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex justify-between items-start mb-2">
-                  <Badge variant="secondary">{projeto.causa}</Badge>
-                  <Badge variant="outline" className="text-green-600 border-green-600">
-                    {projeto.status}
+                  <Badge variant="secondary">{projeto.cause}</Badge>
+                  <Badge 
+                    variant="outline" 
+                    className={getStatusColor(projeto.status)}
+                  >
+                    {getStatusText(projeto.status)}
                   </Badge>
                 </div>
-                <CardTitle className="text-xl">{projeto.titulo}</CardTitle>
+                <CardTitle className="text-xl">{projeto.title}</CardTitle>
                 <CardDescription className="flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
-                  {projeto.cidade}, {projeto.estado}
+                  {projeto.location}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground mb-4 line-clamp-3">{projeto.descricao}</p>
+                <p className="text-muted-foreground mb-4 line-clamp-3">{projeto.description}</p>
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span>{projeto.horasSemana}</span>
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span>{formatarData(projeto.startDate)} - {formatarData(projeto.endDate)}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-muted-foreground" />
                       <span>
-                        {projeto.voluntarios}/{projeto.maxVoluntarios} voluntários
+                        Máx: {projeto.maxVolunteers} voluntários
                       </span>
                     </div>
                   </div>
 
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div
-                      className="bg-primary h-2 rounded-full"
-                      style={{ width: `${(projeto.voluntarios / projeto.maxVoluntarios) * 100}%` }}
-                    />
-                  </div>
-
                   <div className="text-sm text-muted-foreground">
-                    <strong>Organização:</strong> {projeto.organizacao}
+                    <strong>Criado em:</strong> {formatarData(projeto.createdAt)}
                   </div>
                 </div>
 
@@ -325,7 +373,7 @@ export default function ProjetosPage() {
           ))}
         </div>
 
-        {projetosFiltrados.length === 0 && (
+        {projetosFiltrados.length === 0 && !isLoading && (
           <div className="text-center py-12">
             <div className="text-muted-foreground mb-4">
               <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
