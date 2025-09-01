@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { apiService } from "@/lib/api"
 import { Navigation } from "@/components/navigation"
+import { LogoutButton } from "@/components/logout-button"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -30,6 +31,7 @@ import {
   Building,
   Shield,
   Loader2,
+  LogOut,
 } from "lucide-react"
 
 // Dados mockados para o painel administrativo
@@ -194,8 +196,7 @@ export default function AdminPage() {
   const [showCreateProject, setShowCreateProject] = useState(false)
   const [creatingProject, setCreatingProject] = useState(false)
   
-  // Debug temporário para verificar se o modal está funcionando
-  console.log('🔍 Estado showCreateProject:', showCreateProject)
+
   
   // Estados para formulário de criação de projeto
   const [novoProjeto, setNovoProjeto] = useState({
@@ -264,7 +265,6 @@ export default function AdminPage() {
               projeto.ngoId === user.id || user.userType === 'ngo'
             )
             setProjetosDinamicos(projetosOng)
-            console.log('📱 Projetos da ONG carregados:', projetosOng)
           } catch (error) {
             console.error('Erro ao filtrar projetos da ONG:', error)
             setProjetosDinamicos(response.data)
@@ -283,31 +283,18 @@ export default function AdminPage() {
 
   // Função para criar novo projeto
   const handleCreateProject = async () => {
-    console.log('🚀 Função handleCreateProject chamada')
-    console.log('📝 Dados do projeto:', novoProjeto)
-    
     try {
       setCreatingProject(true)
       setErrorProjetos("")
 
       const token = localStorage.getItem('auth_token')
-      console.log('🔑 Token encontrado:', token ? 'Sim' : 'Não')
       
       if (!token) {
         alert('Token de autenticação não encontrado')
         return
       }
 
-      // Validar campos obrigatórios com logs detalhados
-      console.log('🔍 Validando campos:')
-      console.log('  - title:', novoProjeto.title, 'vazio:', !novoProjeto.title)
-      console.log('  - description:', novoProjeto.description, 'vazio:', !novoProjeto.description)
-      console.log('  - location:', novoProjeto.location, 'vazio:', !novoProjeto.location)
-      console.log('  - cause:', novoProjeto.cause, 'vazio:', !novoProjeto.cause)
-      console.log('  - startDate:', novoProjeto.startDate, 'vazio:', !novoProjeto.startDate)
-      console.log('  - endDate:', novoProjeto.endDate, 'vazio:', !novoProjeto.endDate)
-      console.log('  - maxVolunteers:', novoProjeto.maxVolunteers, 'vazio:', !novoProjeto.maxVolunteers)
-      
+      // Validar campos obrigatórios
       if (!novoProjeto.title?.trim()) {
         alert('Título do projeto é obrigatório')
         return
@@ -344,15 +331,9 @@ export default function AdminPage() {
         return
       }
 
-      console.log('📡 Chamando API para criar projeto...')
-      console.log('🔗 Endpoint:', '/projects')
-      console.log('📤 Dados enviados:', novoProjeto)
-      
       const response = await apiService.createProject(novoProjeto, token)
-      console.log('📥 Resposta da API:', response)
       
       if (response.error) {
-        console.log('❌ Erro da API:', response.error)
         alert(`Erro ao criar projeto: ${response.error}`)
         return
       }
@@ -404,12 +385,20 @@ export default function AdminPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
-          <Shield className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="font-playfair font-bold text-3xl md:text-4xl text-foreground">Painel Administrativo</h1>
-            <p className="text-lg text-muted-foreground">Gerencie usuários, projetos e campanhas da plataforma</p>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <Shield className="h-8 w-8 text-primary" />
+            <div>
+              <h1 className="font-playfair font-bold text-3xl md:text-4xl text-foreground">Painel Administrativo</h1>
+              <p className="text-lg text-muted-foreground">Gerencie usuários, projetos e campanhas da plataforma</p>
+            </div>
           </div>
+          
+          {/* Botão de Logout */}
+          <LogoutButton 
+            variant="outline"
+            className="flex items-center gap-2"
+          />
         </div>
 
         {/* Estatísticas Gerais */}
