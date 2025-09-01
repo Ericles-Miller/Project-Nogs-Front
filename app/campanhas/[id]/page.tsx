@@ -1,87 +1,147 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
-import { useParams } from "next/navigation"
-import Link from "next/link"
+import { useState, useEffect } from "react"
+import { useParams, useRouter } from "next/navigation"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Separator } from "@/components/ui/separator"
-import {
-  MapPin,
-  Calendar,
-  ArrowLeft,
-  Heart,
-  Building,
-  Target,
-  Users,
-  TrendingUp,
-  CheckCircle,
-  Loader2,
-} from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { MapPin, Calendar, Heart, ArrowLeft, Loader2, DollarSign, Users, Target, TrendingUp } from "lucide-react"
+import { apiService } from "@/lib/api"
 
-// Dados mockados - em uma aplicação real, isso viria de uma API
-const campanhas = [
-  {
-    id: 1,
-    titulo: "Reforma da Escola Municipal",
-    descricao: "Ajude a reformar a escola que atende 300 crianças da comunidade Vila Esperança.",
-    descricaoCompleta:
-      "A Escola Municipal Vila Esperança atende 300 crianças de famílias de baixa renda da região. O prédio, construído há mais de 30 anos, precisa urgentemente de reformas estruturais para garantir a segurança e o bem-estar dos alunos. As obras incluem: reforma do telhado, pintura geral, troca de pisos danificados, reforma dos banheiros, instalação de nova rede elétrica e criação de uma biblioteca. Com sua ajuda, podemos proporcionar um ambiente de aprendizado digno e seguro para essas crianças, contribuindo para um futuro melhor da nossa comunidade.",
-    categoria: "Educação",
-    meta: 50000,
-    arrecadado: 32500,
-    doadores: 127,
-    diasRestantes: 15,
-    organizacao: "Associação de Pais Vila Esperança",
-    cidade: "São Paulo",
-    estado: "SP",
-    status: "Ativa",
-    urgente: false,
-    dataInicio: "01/02/2024",
-    dataFim: "31/03/2024",
-    endereco: "Rua das Flores, 456 - Vila Esperança, São Paulo - SP",
-    contato: "contato@escolavilaesperanca.org.br",
-    telefone: "(11) 9999-7777",
-    beneficiarios: 300,
-    impacto: "300 crianças terão um ambiente escolar seguro e adequado para aprender",
-    itensNecessarios: [
-      "Material de construção (R$ 25.000)",
-      "Mão de obra especializada (R$ 15.000)",
-      "Mobiliário escolar (R$ 7.000)",
-      "Equipamentos de segurança (R$ 3.000)",
-    ],
-    doacoesRecentes: [
-      { nome: "Maria Silva", valor: 500, data: "2024-03-10", mensagem: "Pela educação das nossas crianças!" },
-      { nome: "João Santos", valor: 200, data: "2024-03-09", mensagem: "Toda criança merece estudar em segurança." },
-      { nome: "Ana Costa", valor: 1000, data: "2024-03-08", mensagem: "Investir em educação é investir no futuro." },
-    ],
-  },
-]
+// Interface para a campanha detalhada
+interface CampaignDetail {
+  id: string
+  title: string
+  description: string
+  goalAmount: number
+  currentAmount: number
+  startDate: string
+  endDate: string
+  status: string
+  category: string
+  ngoId: string
+  createdAt: string
+  numberOfDonations?: number
+  ngo: {
+    id: string
+    organizationName: string
+    cnpj: string
+    description: string
+    email: string
+    city: string
+    state: string
+    causes: string[]
+    areas: string[]
+    skills: string[]
+    preferredCauses: string[]
+    projects: any[]
+    campaigns: string[]
+    createdAt: string
+  }
+}
 
-const valoresSugeridos = [50, 100, 200, 500, 1000]
+// Interface para o formulário de doação
+interface DonationForm {
+  amount: number
+  donorName: string
+  donorEmail: string
+  message: string
+  anonymous: boolean
+}
 
-export default function CampanhaDetalhePage() {
+export default function CampaignDetailPage() {
   const params = useParams()
-  const [valorDoacao, setValorDoacao] = useState("")
-  const [dadosDoador, setDadosDoador] = useState({
-    nome: "",
-    email: "",
-    mensagem: "",
+  const router = useRouter()
+  const campaignId = params.id as string
+  
+  const [campaign, setCampaign] = useState<CampaignDetail | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [showDonationForm, setShowDonationForm] = useState(false)
+  const [donationForm, setDonationForm] = useState<DonationForm>({
+    amount: 0,
+    donorName: "",
+    donorEmail: "",
+    message: "",
+    anonymous: false
   })
-  const [isLoading, setIsLoading] = useState(false)
-  const [success, setSuccess] = useState("")
-  const [mostrarFormulario, setMostrarFormulario] = useState(false)
+  const [isSubmittingDonation, setIsSubmittingDonation] = useState(false)
 
-  const campanha = campanhas.find((c) => c.id === Number(params.id))
+  useEffect(() => {
+    if (campaignId) {
+      fetchCampaignDetails()
+    }
+  }, [campaignId])
+
+  const fetchCampaignDetails = async () => {
+    try {
+      setIsLoading(true)
+      setError("")
+      
+      const response = await apiService.getCampaignById(campaignId)
+      
+      if (response.error) {
+        setError(response.error)
+        return
+      }
+
+      if (response.data) {
+        console.log("Dados da campanha recebidos:", response.data)
+        setCampaign(response.data)
+      }
+    } catch (err) {
+      setError("Erro ao carregar detalhes da campanha. Tente novamente.")
+      console.error("Erro ao buscar campanha:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDonationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!campaign) return
+    
+    try {
+      setIsSubmittingDonation(true)
+      
+      const response = await fetch(`http://localhost:3333/api/campaigns/${campaignId}/donate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(donationForm),
+      })
+
+      if (response.ok) {
+        alert("Doação realizada com sucesso! Obrigado pela sua contribuição.")
+        setShowDonationForm(false)
+        setDonationForm({
+          amount: 0,
+          donorName: "",
+          donorEmail: "",
+          message: "",
+          anonymous: false
+        })
+        // Recarregar dados da campanha para atualizar valores
+        fetchCampaignDetails()
+      } else {
+        const errorData = await response.json()
+        alert(`Erro ao realizar doação: ${errorData.message || 'Tente novamente'}`)
+      }
+    } catch (error) {
+      console.error("Erro ao doar:", error)
+      alert("Erro ao realizar doação. Tente novamente.")
+    } finally {
+      setIsSubmittingDonation(false)
+    }
+  }
 
   const formatarMoeda = (valor: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -90,67 +150,67 @@ export default function CampanhaDetalhePage() {
     }).format(valor)
   }
 
-  const calcularProgresso = (arrecadado: number, meta: number) => {
-    return Math.min((arrecadado / meta) * 100, 100)
+  const formatarData = (data: string) => {
+    return new Date(data).toLocaleDateString("pt-BR")
   }
 
-  const handleValorSugerido = (valor: number) => {
-    setValorDoacao(valor.toString())
+  const calcularProgresso = () => {
+    if (!campaign || !campaign.goalAmount || campaign.goalAmount === 0) return 0
+    return (campaign.currentAmount / campaign.goalAmount) * 100
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setDadosDoador((prev) => ({ ...prev, [name]: value }))
+  const calcularDiasRestantes = () => {
+    if (!campaign || !campaign.endDate) return 0
+    const hoje = new Date()
+    const dataFim = new Date(campaign.endDate)
+    const diffTime = dataFim.getTime() - hoje.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays > 0 ? diffDays : 0
   }
 
-  const handleSubmitDoacao = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setSuccess("")
-
-    // Validação básica
-    if (!valorDoacao || !dadosDoador.nome || !dadosDoador.email) {
-      alert("Por favor, preencha todos os campos obrigatórios.")
-      setIsLoading(false)
-      return
-    }
-
-    if (Number(valorDoacao) < 10) {
-      alert("O valor mínimo para doação é R$ 10,00.")
-      setIsLoading(false)
-      return
-    }
-
-    try {
-      // Simular processamento da doação
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-
-      setSuccess(
-        `Doação de ${formatarMoeda(Number(valorDoacao))} realizada com sucesso! Obrigado por contribuir com esta causa.`,
-      )
-      setMostrarFormulario(false)
-      setValorDoacao("")
-      setDadosDoador({ nome: "", email: "", mensagem: "" })
-    } catch (error) {
-      alert("Erro ao processar doação. Tente novamente.")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  if (!campanha) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gray-50">
         <Navigation />
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-foreground mb-4">Campanha não encontrada</h1>
-            <Link href="/campanhas">
-              <Button>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Voltar às Campanhas
-              </Button>
-            </Link>
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <p className="text-gray-600">Carregando detalhes da campanha...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !campaign) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navigation />
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
+            <Button
+              variant="outline"
+              onClick={() => router.back()}
+              className="mb-6"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Voltar
+            </Button>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <p className="text-red-600 mb-4">
+                    {error || "Campanha não encontrada"}
+                  </p>
+                  <Button onClick={fetchCampaignDetails}>
+                    Tentar Novamente
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
@@ -158,345 +218,283 @@ export default function CampanhaDetalhePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gray-50">
       <Navigation />
+      
+      <div className="container mx-auto px-4 py-8">
+        {/* Botão Voltar */}
+        <Button
+          variant="outline"
+          onClick={() => router.back()}
+          className="mb-6"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar para Campanhas
+        </Button>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Breadcrumb */}
-        <div className="mb-6">
-          <Link href="/campanhas" className="inline-flex items-center text-primary hover:text-primary/80 font-medium">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar às Campanhas
-          </Link>
-        </div>
-
-        {success && (
-          <Alert className="mb-6 border-green-200 bg-green-50 text-green-800">
-            <CheckCircle className="h-4 w-4" />
-            <AlertDescription>{success}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Header da Campanha */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <div className="flex items-center gap-3">
-              <Badge variant="secondary" className="text-sm">
-                {campanha.categoria}
-              </Badge>
-              {campanha.urgente && (
-                <Badge variant="destructive" className="text-xs">
-                  Urgente
-                </Badge>
-              )}
-              <Badge variant="outline" className="text-green-600 border-green-600">
-                {campanha.status}
-              </Badge>
-            </div>
-          </div>
-
-          <h1 className="font-playfair font-bold text-3xl md:text-4xl text-foreground mb-4">{campanha.titulo}</h1>
-
-          <div className="flex flex-wrap items-center gap-6 text-muted-foreground mb-6">
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              <span>
-                {campanha.cidade}, {campanha.estado}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Building className="h-4 w-4" />
-              <span>{campanha.organizacao}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              <span>{campanha.doadores} doadores</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              <span>{campanha.diasRestantes} dias restantes</span>
-            </div>
-          </div>
-
-          {/* Progresso da Campanha */}
-          <Card className="mb-8">
-            <CardContent className="p-6">
-              <div className="grid md:grid-cols-3 gap-6">
-                <div className="md:col-span-2">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">Progresso da Arrecadação</h3>
-                    <span className="text-2xl font-bold text-primary">
-                      {Math.round(calcularProgresso(campanha.arrecadado, campanha.meta))}%
-                    </span>
-                  </div>
-                  <Progress value={calcularProgresso(campanha.arrecadado, campanha.meta)} className="h-3 mb-4" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Arrecadado</p>
-                      <p className="text-2xl font-bold text-primary">{formatarMoeda(campanha.arrecadado)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Meta</p>
-                      <p className="text-2xl font-bold">{formatarMoeda(campanha.meta)}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex flex-col justify-center">
-                  {!mostrarFormulario ? (
-                    <Button size="lg" onClick={() => setMostrarFormulario(true)} className="w-full">
-                      <Heart className="mr-2 h-5 w-5" />
-                      Fazer Doação
-                    </Button>
-                  ) : (
-                    <Button variant="outline" onClick={() => setMostrarFormulario(false)} className="w-full">
-                      Cancelar Doação
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Conteúdo Principal */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Coluna Principal - Detalhes da Campanha */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Formulário de Doação */}
-            {mostrarFormulario && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Heart className="h-5 w-5 text-primary" />
-                    Fazer uma Doação
-                  </CardTitle>
-                  <CardDescription>Preencha os dados abaixo para contribuir com esta campanha</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmitDoacao} className="space-y-6">
-                    {/* Valores Sugeridos */}
-                    <div className="space-y-3">
-                      <Label>Valor da Doação</Label>
-                      <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
-                        {valoresSugeridos.map((valor) => (
-                          <Button
-                            key={valor}
-                            type="button"
-                            variant={valorDoacao === valor.toString() ? "default" : "outline"}
-                            onClick={() => handleValorSugerido(valor)}
-                            className="text-sm"
-                          >
-                            R$ {valor}
-                          </Button>
-                        ))}
-                      </div>
-                      <div className="relative">
-                        <span className="absolute left-3 top-3 text-muted-foreground">R$</span>
-                        <Input
-                          type="number"
-                          placeholder="Outro valor"
-                          value={valorDoacao}
-                          onChange={(e) => setValorDoacao(e.target.value)}
-                          className="pl-10"
-                          min="10"
-                          step="0.01"
-                          required
-                        />
-                      </div>
+            {/* Card Principal da Campanha */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-2xl mb-2">{campaign.title}</CardTitle>
+                    <div className="flex items-center gap-4 mb-4">
+                      <Badge variant={campaign.status === 'active' ? 'default' : campaign.status === 'completed' ? 'secondary' : 'destructive'}>
+                        {campaign.status === 'active' ? 'Ativa' : campaign.status === 'completed' ? 'Concluída' : 'Cancelada'}
+                      </Badge>
+                      <Badge variant="outline">{campaign.category}</Badge>
                     </div>
+                  </div>
+                  <Button
+                    onClick={() => setShowDonationForm(true)}
+                    className="bg-green-600 hover:bg-green-700"
+                    disabled={campaign.status !== 'active'}
+                  >
+                    <Heart className="h-4 w-4 mr-2" />
+                    Doar Agora
+                  </Button>
+                </div>
+              </CardHeader>
+              
+              <CardContent className="space-y-6">
+                {/* Descrição */}
+                <div>
+                  <h3 className="font-semibold mb-2">Descrição</h3>
+                  <p className="text-gray-700 leading-relaxed">{campaign.description}</p>
+                </div>
 
-                    {/* Dados do Doador */}
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="nome">Nome Completo *</Label>
-                        <Input
-                          id="nome"
-                          name="nome"
-                          value={dadosDoador.nome}
-                          onChange={handleInputChange}
-                          placeholder="Seu nome completo"
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email *</Label>
-                        <Input
-                          id="email"
-                          name="email"
-                          type="email"
-                          value={dadosDoador.email}
-                          onChange={handleInputChange}
-                          placeholder="seu@email.com"
-                          required
-                        />
-                      </div>
-                    </div>
+                                 {/* Progresso da Campanha */}
+                 <div>
+                   <div className="flex items-center justify-between mb-2">
+                     <h3 className="font-semibold">Progresso da Campanha</h3>
+                     <span className="text-sm text-gray-600">
+                       {formatarMoeda(campaign.currentAmount || 0)} de {formatarMoeda(campaign.goalAmount || 0)}
+                     </span>
+                   </div>
+                   <Progress value={calcularProgresso()} className="h-3" />
+                   <div className="flex items-center justify-between mt-2 text-sm text-gray-600">
+                     <span>{calcularProgresso().toFixed(1)}% concluído</span>
+                     <span>{campaign.numberOfDonations || 0} doadores</span>
+                   </div>
+                 </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="mensagem">Mensagem (opcional)</Label>
-                      <Textarea
-                        id="mensagem"
-                        name="mensagem"
-                        value={dadosDoador.mensagem}
-                        onChange={handleInputChange}
-                        placeholder="Deixe uma mensagem de apoio..."
-                        rows={3}
-                      />
-                    </div>
+                                 {/* Informações da ONG */}
+                 {campaign.ngo && (
+                   <div>
+                     <h3 className="font-semibold mb-3">Organização Responsável</h3>
+                     <Card className="bg-gray-50">
+                       <CardContent className="pt-4">
+                         <h4 className="font-medium text-lg mb-2">{campaign.ngo.organizationName || 'Nome não disponível'}</h4>
+                         <p className="text-gray-600 mb-3">{campaign.ngo.description || 'Descrição não disponível'}</p>
+                         <div className="grid grid-cols-2 gap-4 text-sm">
+                           <div>
+                             <span className="font-medium">Cidade:</span> {campaign.ngo.city || 'N/A'}, {campaign.ngo.state || 'N/A'}
+                           </div>
+                           <div>
+                             <span className="font-medium">Email:</span> {campaign.ngo.email || 'Email não disponível'}
+                           </div>
+                         </div>
+                         {campaign.ngo.causes && campaign.ngo.causes.length > 0 && (
+                           <div className="mt-3">
+                             <span className="font-medium text-sm">Causas:</span>
+                             <div className="flex flex-wrap gap-2 mt-1">
+                               {campaign.ngo.causes.map((cause, index) => (
+                                 <Badge key={index} variant="outline" className="text-xs">
+                                   {cause}
+                                 </Badge>
+                               ))}
+                             </div>
+                           </div>
+                         )}
+                       </CardContent>
+                     </Card>
+                   </div>
+                 )}
 
-                    <Button type="submit" disabled={isLoading} className="w-full" size="lg">
-                      {isLoading ? (
+                                 {/* Datas e Localização */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div className="flex items-center gap-3">
+                     <Calendar className="h-5 w-5 text-gray-500" />
+                     <div>
+                       <p className="font-medium">Data de Início</p>
+                       <p className="text-sm text-gray-600">{campaign.startDate ? formatarData(campaign.startDate) : 'Data não disponível'}</p>
+                     </div>
+                   </div>
+                   <div className="flex items-center gap-3">
+                     <Calendar className="h-5 w-5 text-gray-500" />
+                     <div>
+                       <p className="font-medium">Data de Término</p>
+                       <p className="text-sm text-gray-600">{campaign.endDate ? formatarData(campaign.endDate) : 'Data não disponível'}</p>
+                     </div>
+                   </div>
+                 </div>
+
+                                 {campaign.status === 'active' && (
+                   <div className="bg-blue-50 p-4 rounded-lg">
+                     <div className="flex items-center gap-2 mb-2">
+                       <Target className="h-5 w-5 text-blue-600" />
+                       <span className="font-medium text-blue-800">Meta da Campanha</span>
+                     </div>
+                     <p className="text-blue-700">
+                       Esta campanha precisa arrecadar {formatarMoeda((campaign.goalAmount || 0) - (campaign.currentAmount || 0))} 
+                       para atingir sua meta. {calcularDiasRestantes() > 0 ? `Restam ${calcularDiasRestantes()} dias.` : 'Último dia!'}
+                     </p>
+                   </div>
+                 )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Coluna Lateral - Estatísticas e Ações */}
+          <div className="space-y-6">
+            {/* Estatísticas Rápidas */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Estatísticas</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                                 <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                     <DollarSign className="h-5 w-5 text-green-600" />
+                     <span>Arrecadado</span>
+                   </div>
+                   <span className="font-semibold">{formatarMoeda(campaign.currentAmount || 0)}</span>
+                 </div>
+                 
+                 <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                     <Target className="h-5 w-5 text-blue-600" />
+                     <span>Meta</span>
+                   </div>
+                   <span className="font-semibold">{formatarMoeda(campaign.goalAmount || 0)}</span>
+                 </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-purple-600" />
+                    <span>Doadores</span>
+                  </div>
+                  <span className="font-semibold">{campaign.numberOfDonations || 0}</span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-orange-600" />
+                    <span>Progresso</span>
+                  </div>
+                  <span className="font-semibold">{calcularProgresso().toFixed(1)}%</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            
+          </div>
+        </div>
+
+        {/* Modal de Doação */}
+        {showDonationForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <CardTitle>Fazer Doação</CardTitle>
+                <CardDescription>
+                  Contribua para a campanha "{campaign.title}"
+                </CardDescription>
+              </CardHeader>
+              
+              <CardContent>
+                <form onSubmit={handleDonationSubmit} className="space-y-4">
+                  <div>
+                    <Label htmlFor="amount">Valor da Doação (R$)</Label>
+                    <Input
+                      id="amount"
+                      type="number"
+                      step="0.01"
+                      min="1"
+                      value={donationForm.amount}
+                      onChange={(e) => setDonationForm(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                      placeholder="50.00"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="donorName">Nome (opcional)</Label>
+                    <Input
+                      id="donorName"
+                      value={donationForm.donorName}
+                      onChange={(e) => setDonationForm(prev => ({ ...prev, donorName: e.target.value }))}
+                      placeholder="Seu nome"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="donorEmail">Email</Label>
+                    <Input
+                      id="donorEmail"
+                      type="email"
+                      value={donationForm.donorEmail}
+                      onChange={(e) => setDonationForm(prev => ({ ...prev, donorEmail: e.target.value }))}
+                      placeholder="seu@email.com"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="message">Mensagem (opcional)</Label>
+                    <Textarea
+                      id="message"
+                      value={donationForm.message}
+                      onChange={(e) => setDonationForm(prev => ({ ...prev, message: e.target.value }))}
+                      placeholder="Deixe uma mensagem de apoio..."
+                      rows={3}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="anonymous"
+                      checked={donationForm.anonymous}
+                      onCheckedChange={(checked) => setDonationForm(prev => ({ ...prev, anonymous: checked as boolean }))}
+                    />
+                    <Label htmlFor="anonymous">Doação anônima</Label>
+                  </div>
+                  
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowDonationForm(false)}
+                      className="flex-1"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="flex-1 bg-green-600 hover:bg-green-700"
+                      disabled={isSubmittingDonation || donationForm.amount <= 0}
+                    >
+                      {isSubmittingDonation ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Processando Doação...
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Processando...
                         </>
                       ) : (
                         <>
-                          <Heart className="mr-2 h-4 w-4" />
-                          Doar {valorDoacao ? formatarMoeda(Number(valorDoacao)) : ""}
+                          <Heart className="h-4 w-4 mr-2" />
+                          Doar
                         </>
                       )}
                     </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Descrição */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Sobre a Campanha</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground leading-relaxed">{campanha.descricaoCompleta}</p>
-              </CardContent>
-            </Card>
-
-            {/* Itens Necessários */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Como o Dinheiro Será Usado</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-3">
-                  {campanha.itensNecessarios.map((item, index) => (
-                    <li key={index} className="flex items-start gap-3">
-                      <Target className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                      <span className="text-muted-foreground">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-
-            {/* Doações Recentes */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Doações Recentes</CardTitle>
-                <CardDescription>Veja quem está apoiando esta causa</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {campanha.doacoesRecentes.map((doacao, index) => (
-                    <div key={index} className="border-l-4 border-primary pl-4">
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="font-medium">{doacao.nome}</span>
-                        <span className="text-primary font-semibold">{formatarMoeda(doacao.valor)}</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-1">{doacao.mensagem}</p>
-                      <p className="text-xs text-muted-foreground">{doacao.data}</p>
-                    </div>
-                  ))}
-                </div>
+                  </div>
+                </form>
               </CardContent>
             </Card>
           </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Informações da Campanha */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Informações da Campanha</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Período</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {campanha.dataInicio} até {campanha.dataFim}
-                  </p>
-                </div>
-
-                <Separator />
-
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Endereço</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{campanha.endereco}</p>
-                </div>
-
-                <Separator />
-
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Beneficiários</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{campanha.beneficiarios} pessoas</p>
-                </div>
-
-                <Separator />
-
-                <div>
-                  <span className="font-medium">Contato</span>
-                  <p className="text-sm text-muted-foreground mt-1">{campanha.contato}</p>
-                  <p className="text-sm text-muted-foreground">{campanha.telefone}</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Impacto */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                  Impacto Esperado
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{campanha.impacto}</p>
-              </CardContent>
-            </Card>
-
-            {/* Compartilhar */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Compartilhe esta Campanha</CardTitle>
-                <CardDescription>Ajude a divulgar esta causa</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" size="sm">
-                    Facebook
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    Twitter
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    WhatsApp
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    Copiar Link
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )

@@ -169,6 +169,12 @@ class ApiService {
     });
   }
 
+  async getCampaignById(id: string): Promise<ApiResponse> {
+    return this.request(`/campaigns/${id}`, {
+      method: 'GET',
+    });
+  }
+
   // User endpoints (autenticados)
   async getProfile(token: string): Promise<ApiResponse> {
     return this.request('/users/profile', {
