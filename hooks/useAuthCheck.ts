@@ -55,3 +55,4 @@ export function useAuthCheck() {
 
   return { isAuthenticated, isLoading, user };
 }
+
