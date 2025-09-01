@@ -213,7 +213,7 @@ class ApiService {
   async donateToCampaign(campaignId: string, donationData: {
     amount: number;
     donorName?: string;
-    donorEmail: string;
+    donorEmail?: string;
     message?: string;
     anonymous: boolean;
   }): Promise<ApiResponse> {

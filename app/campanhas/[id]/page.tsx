@@ -81,6 +81,7 @@ export default function CampaignDetailPage() {
   })
   const [isSubmittingDonation, setIsSubmittingDonation] = useState(false)
   const [donationSuccess, setDonationSuccess] = useState(false)
+  const [isAmountFieldFocused, setIsAmountFieldFocused] = useState(false)
 
   useEffect(() => {
     if (campaignId) {
@@ -122,12 +123,8 @@ export default function CampaignDetailPage() {
       return
     }
     
-    if (!donationForm.donorEmail) {
-      alert("Por favor, insira seu email.")
-      return
-    }
-    
-    if (!donationForm.donorName && !donationForm.anonymous) {
+    // Se for anônimo, não precisa de nome nem email
+    if (!donationForm.anonymous && !donationForm.donorName) {
       alert("Por favor, insira seu nome ou marque a opção de doação anônima.")
       return
     }
@@ -439,17 +436,14 @@ export default function CampaignDetailPage() {
         {/* Modal de Doação */}
         {showDonationForm && (
           <>
-            {/* Backdrop sutil */}
-            <div className="fixed inset-0 bg-gray-900 bg-opacity-10 z-[999999]" />
-            
-            {/* Modal */}
+            {/* Modal sem backdrop - página continua visível */}
             <div className="fixed inset-0 flex items-center justify-center z-[9999999] p-4">
-                            <Card className="w-full max-w-md shadow-2xl border-2 border-green-200 bg-white animate-in fade-in-0 zoom-in-95 duration-200">
-                <CardHeader>
+                            <Card className="w-full max-w-md shadow-2xl border-2 border-green-200 bg-white/95 backdrop-blur-sm animate-in fade-in-0 zoom-in-95 duration-200">
+                <CardHeader className="bg-green-50 border-b border-green-200">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>Fazer Doação</CardTitle>
-                      <CardDescription>
+                      <CardTitle className="text-green-800">Fazer Doação</CardTitle>
+                      <CardDescription className="text-green-600">
                         Contribua para a campanha "{campaign.title}"
                       </CardDescription>
                     </div>
@@ -457,7 +451,7 @@ export default function CampaignDetailPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => setShowDonationForm(false)}
-                      className="h-8 w-8 p-0 hover:bg-gray-100"
+                      className="h-8 w-8 p-0 hover:bg-green-100 text-green-600"
                     >
                       <span className="sr-only">Fechar</span>
                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -476,9 +470,23 @@ export default function CampaignDetailPage() {
                          type="number"
                          step="0.01"
                          min="1"
-                         value={donationForm.amount}
+                         value={donationForm.amount === 0 ? "" : donationForm.amount}
                          onChange={(e) => setDonationForm(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
-                         placeholder="50.00"
+                         onClick={() => {
+                           if (donationForm.amount === 0) {
+                             setDonationForm(prev => ({ ...prev, amount: 0 }))
+                           }
+                         }}
+                         onFocus={() => {
+                           setIsAmountFieldFocused(true)
+                           if (donationForm.amount === 0) {
+                             setDonationForm(prev => ({ ...prev, amount: 0 }))
+                           }
+                         }}
+                         onBlur={() => {
+                           setIsAmountFieldFocused(false)
+                         }}
+                         placeholder="Digite o valor (ex: 50.00)"
                          required
                          className={donationForm.amount > 0 ? "border-green-500" : ""}
                        />
@@ -489,25 +497,34 @@ export default function CampaignDetailPage() {
                        )}
                      </div>
                   
-                  <div>
-                    <Label htmlFor="donorName">Nome (opcional)</Label>
-                    <Input
-                      id="donorName"
-                      value={donationForm.donorName}
-                      onChange={(e) => setDonationForm(prev => ({ ...prev, donorName: e.target.value }))}
-                      placeholder="Seu nome"
-                    />
-                  </div>
+                                     <div>
+                     <Label htmlFor="donorName">
+                       Nome {!donationForm.anonymous && <span className="text-red-500">*</span>}
+                     </Label>
+                     <Input
+                       id="donorName"
+                       value={donationForm.donorName}
+                       onChange={(e) => setDonationForm(prev => ({ ...prev, donorName: e.target.value }))}
+                       placeholder={donationForm.anonymous ? "Nome (opcional)" : "Seu nome"}
+                       required={!donationForm.anonymous}
+                       disabled={donationForm.anonymous}
+                       className={donationForm.anonymous ? "bg-gray-100" : ""}
+                     />
+                     {donationForm.anonymous && (
+                       <p className="text-sm text-gray-500 mt-1">
+                         Doação anônima - nome não será exibido
+                       </p>
+                     )}
+                   </div>
                   
                                      <div>
-                     <Label htmlFor="donorEmail">Email *</Label>
+                     <Label htmlFor="donorEmail">Email (opcional)</Label>
                      <Input
                        id="donorEmail"
                        type="email"
                        value={donationForm.donorEmail}
                        onChange={(e) => setDonationForm(prev => ({ ...prev, donorEmail: e.target.value }))}
-                       placeholder="seu@email.com"
-                       required
+                       placeholder="seu@email.com (opcional)"
                        className={donationForm.donorEmail && donationForm.donorEmail.includes('@') ? "border-green-500" : ""}
                      />
                      {donationForm.donorEmail && donationForm.donorEmail.includes('@') && (
@@ -515,6 +532,9 @@ export default function CampaignDetailPage() {
                          ✓ Email válido
                        </p>
                      )}
+                     <p className="text-sm text-gray-500 mt-1">
+                       Deixe em branco para doação anônima
+                     </p>
                    </div>
                   
                   <div>
@@ -528,14 +548,27 @@ export default function CampaignDetailPage() {
                     />
                   </div>
                   
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="anonymous"
-                      checked={donationForm.anonymous}
-                      onCheckedChange={(checked) => setDonationForm(prev => ({ ...prev, anonymous: checked as boolean }))}
-                    />
-                    <Label htmlFor="anonymous">Doação anônima</Label>
-                  </div>
+                                     <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
+                     <Checkbox
+                       id="anonymous"
+                       checked={donationForm.anonymous}
+                       onCheckedChange={(checked) => {
+                         const isAnonymous = checked as boolean
+                         setDonationForm(prev => ({ 
+                           ...prev, 
+                           anonymous: isAnonymous,
+                           // Limpar nome se for anônimo
+                           donorName: isAnonymous ? "" : prev.donorName
+                         }))
+                       }}
+                     />
+                     <div className="ml-2">
+                       <Label htmlFor="anonymous" className="font-medium">Doação anônima</Label>
+                       <p className="text-sm text-gray-600">
+                         Sua identidade não será exibida publicamente
+                       </p>
+                     </div>
+                   </div>
                   
                   <div className="flex gap-3 pt-4">
                     <Button
@@ -546,23 +579,23 @@ export default function CampaignDetailPage() {
                     >
                       Cancelar
                     </Button>
-                    <Button
-                      type="submit"
-                      className="flex-1 bg-green-600 hover:bg-green-700"
-                      disabled={isSubmittingDonation || donationForm.amount <= 0}
-                    >
-                      {isSubmittingDonation ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Processando...
-                        </>
-                      ) : (
-                        <>
-                          <Heart className="h-4 w-4 mr-2" />
-                          Doar
-                        </>
-                      )}
-                    </Button>
+                                         <Button
+                       type="submit"
+                       className="flex-1 bg-green-600 hover:bg-green-700 shadow-lg"
+                       disabled={isSubmittingDonation || donationForm.amount <= 0}
+                     >
+                       {isSubmittingDonation ? (
+                         <>
+                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                           Processando...
+                         </>
+                       ) : (
+                         <>
+                           <Heart className="h-4 w-4 mr-2" />
+                           Doar
+                         </>
+                       )}
+                     </Button>
                   </div>
                                  </form>
                </CardContent>
