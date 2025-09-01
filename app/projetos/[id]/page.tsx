@@ -98,7 +98,27 @@ export default function ProjetoDetalhePage() {
   const [isJoining, setIsJoining] = useState(false)
   const [error, setError] = useState("")
   const [inscrito, setInscrito] = useState(false)
+  const [authenticatedUser, setAuthenticatedUser] = useState<any>(null)
   const [success, setSuccess] = useState("")
+
+  // Carregar usuário autenticado
+  useEffect(() => {
+    const loadAuthenticatedUser = () => {
+      const token = localStorage.getItem('auth_token')
+      const userData = localStorage.getItem('auth_user')
+      
+      if (token && userData) {
+        try {
+          const user = JSON.parse(userData)
+          setAuthenticatedUser(user)
+        } catch (error) {
+          console.error('Erro ao carregar dados do usuário:', error)
+        }
+      }
+    }
+    
+    loadAuthenticatedUser()
+  }, [])
 
   // Buscar detalhes do projeto da API
   useEffect(() => {
@@ -109,21 +129,39 @@ export default function ProjetoDetalhePage() {
 
   // Verificar se o usuário já está inscrito neste projeto
   useEffect(() => {
-    if (projeto?.id) {
-      const savedJoinedProjects = localStorage.getItem('joined_projects')
-      if (savedJoinedProjects) {
-        try {
-          const projectIds = JSON.parse(savedJoinedProjects)
-          if (projectIds.includes(projeto.id)) {
-            setInscrito(true)
-            console.log('✅ Usuário já inscrito neste projeto:', projeto.id)
+    if (projeto?.id && authenticatedUser) {
+      // Verificar se o projeto tem enrollments e se o usuário está inscrito
+      if (projeto.enrollments && projeto.enrollments.length > 0) {
+        const isEnrolled = projeto.enrollments.some((enrollment: Enrollment) => 
+          enrollment.volunteerId === authenticatedUser.id
+        )
+        setInscrito(isEnrolled)
+        
+        // Atualizar localStorage se estiver inscrito
+        if (isEnrolled) {
+          const savedJoinedProjects = localStorage.getItem('joined_projects')
+          let joinedProjects = savedJoinedProjects ? JSON.parse(savedJoinedProjects) : []
+          if (!joinedProjects.includes(projeto.id)) {
+            joinedProjects.push(projeto.id)
+            localStorage.setItem('joined_projects', JSON.stringify(joinedProjects))
           }
-        } catch (error) {
-          console.error('Erro ao verificar projetos inscritos:', error)
+        }
+      } else {
+        // Fallback para localStorage
+        const savedJoinedProjects = localStorage.getItem('joined_projects')
+        if (savedJoinedProjects) {
+          try {
+            const projectIds = JSON.parse(savedJoinedProjects)
+            if (projectIds.includes(projeto.id)) {
+              setInscrito(true)
+            }
+          } catch (error) {
+            console.error('Erro ao verificar projetos inscritos:', error)
+          }
         }
       }
     }
-  }, [projeto?.id])
+  }, [projeto?.id, authenticatedUser])
 
   const fetchProjetoDetalhes = async (projectId: string) => {
     try {
@@ -142,6 +180,25 @@ export default function ProjetoDetalhePage() {
 
       if (response.data) {
         setProjeto(response.data)
+        
+        // Verificar se o usuário está inscrito neste projeto
+        if (authenticatedUser && authenticatedUser.userType === 'volunteer') {
+          const isEnrolled = response.data.enrollments && 
+            response.data.enrollments.some((enrollment: Enrollment) => 
+              enrollment.volunteerId === authenticatedUser.id
+            )
+          setInscrito(isEnrolled)
+          
+          // Atualizar localStorage se estiver inscrito
+          if (isEnrolled) {
+            const savedJoinedProjects = localStorage.getItem('joined_projects')
+            let joinedProjects = savedJoinedProjects ? JSON.parse(savedJoinedProjects) : []
+            if (!joinedProjects.includes(projectId)) {
+              joinedProjects.push(projectId)
+              localStorage.setItem('joined_projects', JSON.stringify(joinedProjects))
+            }
+          }
+        }
         
         // Se o projeto tem ngoId, buscar dados da ONG
         if (response.data.ngoId) {
@@ -174,6 +231,12 @@ export default function ProjetoDetalhePage() {
   }
 
   const handleInscricao = async () => {
+    // Verificar se já está inscrito
+    if (inscrito) {
+      alert("Você já está inscrito neste projeto!")
+      return
+    }
+
     const token = localStorage.getItem('auth_token')
     const userData = localStorage.getItem('auth_user')
     

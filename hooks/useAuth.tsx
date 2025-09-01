@@ -26,8 +26,11 @@ export function AuthProvider({ children }: { children: any }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    
     // Verificar se há token salvo no localStorage
     const savedToken = localStorage.getItem('auth_token');
     const savedUser = localStorage.getItem('auth_user');
@@ -181,6 +184,11 @@ export function AuthProvider({ children }: { children: any }) {
     register,
     logout,
   };
+
+  // Não renderizar até o componente estar montado no cliente
+  if (!mounted) {
+    return <div className="min-h-screen bg-background"></div>;
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

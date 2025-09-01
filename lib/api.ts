@@ -56,8 +56,13 @@ class ApiService {
     try {
       const response = await fetch(url, config);
 
-      // Para respostas vazias (como 204 No Content), retornar sucesso
+      // Para respostas vazias (como 204 No Content), verificar se é GET
       if (response.status === 204) {
+        // Se for GET, 204 significa sem conteúdo (erro)
+        if (options.method === 'GET') {
+          return { error: "Nenhum dado encontrado" }
+        }
+        // Para outros métodos (POST, PUT, DELETE), 204 pode ser sucesso
         return { message: "Operação realizada com sucesso" }
       }
 
@@ -77,12 +82,12 @@ class ApiService {
         data = null
       }
 
-      if (!response.ok) {
+        if (!response.ok) {
         return {
           error: data?.message || `Erro ${response.status}: ${response.statusText}`,
         };
       }
-
+      
       return { data };
     } catch (error) {
       return {
