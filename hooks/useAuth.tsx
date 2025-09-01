@@ -108,6 +108,8 @@ export function AuthProvider({ children }: { children: any }) {
     setUser(null);
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
+    // Limpar também projetos inscritos ao fazer logout
+    localStorage.removeItem('joined_projects');
   };
 
   const value: AuthContextType = {

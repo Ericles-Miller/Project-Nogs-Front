@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Clock, Users, Search, Filter, Loader2, Calendar } from "lucide-react"
+import { MapPin, Users, Search, Filter, Loader2, Calendar, CheckCircle } from "lucide-react"
 import { apiService } from "@/lib/api"
 
 // Interface para o projeto do backend
@@ -58,6 +58,9 @@ export default function ProjetosPage() {
   const [projetosFiltrados, setProjetosFiltrados] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
+  const [joiningProjects, setJoiningProjects] = useState<Set<string>>(new Set())
+  const [joinedProjects, setJoinedProjects] = useState<Set<string>>(new Set())
+  const [successMessage, setSuccessMessage] = useState("")
   const [filtros, setFiltros] = useState({
     busca: "",
     cidade: "",
@@ -69,6 +72,44 @@ export default function ProjetosPage() {
   // Buscar projetos da API
   useEffect(() => {
     fetchProjetos()
+  }, [])
+
+  // Carregar projetos inscritos do localStorage ao montar a página
+  useEffect(() => {
+    const savedJoinedProjects = localStorage.getItem('joined_projects')
+    if (savedJoinedProjects) {
+      try {
+        const projectIds = JSON.parse(savedJoinedProjects)
+        setJoinedProjects(new Set(projectIds))
+        console.log('📱 Projetos inscritos carregados do localStorage:', projectIds)
+      } catch (error) {
+        console.error('Erro ao carregar projetos inscritos do localStorage:', error)
+        localStorage.removeItem('joined_projects')
+      }
+    } else {
+      console.log('📱 Nenhum projeto inscrito encontrado no localStorage')
+    }
+  }, [])
+
+  // Sincronizar com mudanças no localStorage (útil para múltiplas abas)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'joined_projects') {
+        if (e.newValue) {
+          try {
+            const projectIds = JSON.parse(e.newValue)
+            setJoinedProjects(new Set(projectIds))
+          } catch (error) {
+            console.error('Erro ao sincronizar projetos inscritos:', error)
+          }
+        } else {
+          setJoinedProjects(new Set())
+        }
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
 
   const fetchProjetos = async () => {
@@ -95,6 +136,80 @@ export default function ProjetosPage() {
       console.error("Erro ao buscar projetos:", err)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleJoinProject = async (projectId: string) => {
+    const token = localStorage.getItem('auth_token')
+    const userData = localStorage.getItem('auth_user')
+    
+    if (!token) {
+      alert('Você precisa estar logado para participar de projetos. Faça login primeiro.')
+      return
+    }
+
+    if (!userData) {
+      alert('Erro ao verificar dados do usuário. Faça login novamente.')
+      return
+    }
+
+    try {
+      const user = JSON.parse(userData)
+      
+      if (user.userType !== 'volunteer') {
+        alert('Apenas voluntários podem se inscrever em projetos. ONGs não podem participar como voluntários.')
+        return
+      }
+    } catch (err) {
+      console.error('Erro ao verificar tipo de usuário:', err)
+      alert('Erro ao verificar dados do usuário. Faça login novamente.')
+      return
+    }
+
+    try {
+      setJoiningProjects(prev => new Set(prev).add(projectId))
+      setError("")
+      setSuccessMessage("")
+
+      const response = await apiService.joinProject(
+        projectId, 
+        'pending', 
+        'Interesse em participar do projeto', 
+        token
+      )
+      
+      if (response.error) {
+        alert(`Erro ao participar: ${response.error}`)
+        return
+      }
+
+      // Se chegou aqui, foi sucesso (status 201 ou 200)
+      console.log('✅ Inscrição realizada com sucesso para o projeto:', projectId)
+      
+      // Atualizar estado local
+      const newJoinedProjects = new Set(joinedProjects).add(projectId)
+      setJoinedProjects(newJoinedProjects)
+      
+      // Salvar no localStorage para persistir entre navegações
+      localStorage.setItem('joined_projects', JSON.stringify(Array.from(newJoinedProjects)))
+      console.log('💾 Projetos inscritos salvos no localStorage:', Array.from(newJoinedProjects))
+      
+      setSuccessMessage(`🎉 Parabéns! Você foi inscrito no projeto com sucesso!`)
+      
+      // Limpar mensagem de sucesso após 8 segundos
+      setTimeout(() => {
+        setSuccessMessage("")
+      }, 8000)
+      
+    } catch (error) {
+      console.error("Erro ao participar do projeto:", error)
+      alert('Erro ao participar do projeto. Tente novamente.')
+    } finally {
+      setJoiningProjects(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(projectId)
+        return newSet
+      })
     }
   }
 
@@ -135,6 +250,12 @@ export default function ProjetosPage() {
       causa: "Todas as causas",
       status: "Todos os status"
     })
+  }
+
+  // Função para limpar projetos inscritos (útil para logout)
+  const limparProjetosInscritos = () => {
+    setJoinedProjects(new Set())
+    localStorage.removeItem('joined_projects')
   }
 
   const formatarData = (dataString: string) => {
@@ -316,6 +437,33 @@ export default function ProjetosPage() {
           </div>
         )}
 
+        {/* Mensagem de sucesso */}
+        {successMessage && (
+          <div className="mb-6 p-6 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0">
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-green-800 mb-1">
+                  Inscrição Realizada!
+                </h3>
+                <p className="text-green-700">{successMessage}</p>
+              </div>
+              <button
+                onClick={() => setSuccessMessage("")}
+                className="flex-shrink-0 text-green-400 hover:text-green-600 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Lista de Projetos */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projetosFiltrados.map((projeto) => (
@@ -364,9 +512,36 @@ export default function ProjetosPage() {
                       Ver Detalhes
                     </Button>
                   </Link>
-                  <Link href={`/projetos/${projeto.id}`} className="flex-1">
-                    <Button className="w-full">Participar</Button>
-                  </Link>
+                  {(() => {
+                    const isJoining = joiningProjects.has(projeto.id)
+                    const hasJoined = joinedProjects.has(projeto.id)
+                    
+                    if (hasJoined) {
+                      return (
+                        <Button disabled className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 cursor-not-allowed shadow-sm">
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          ✓ Inscrito
+                        </Button>
+                      )
+                    }
+                    
+                    return (
+                      <Button 
+                        onClick={() => handleJoinProject(projeto.id)}
+                        disabled={isJoining}
+                        className="flex-1"
+                      >
+                        {isJoining ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Inscrevendo...
+                          </>
+                        ) : (
+                          'Participar'
+                        )}
+                      </Button>
+                    )
+                  })()}
                 </div>
               </CardContent>
             </Card>
