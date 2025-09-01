@@ -142,13 +142,26 @@ class ApiService {
     });
   }
 
-  async getCampaigns(token?: string): Promise<ApiResponse> {
+  async getCampaigns(filters?: {
+    title?: string;
+    status?: string;
+    category?: string;
+  }, token?: string): Promise<ApiResponse> {
     const headers: any = {};
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
     
-    return this.request('/campaigns', {
+    // Construir query string com filtros
+    const params = new URLSearchParams();
+    if (filters?.title) params.append('title', filters.title);
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.category) params.append('category', filters.category);
+    
+    const queryString = params.toString();
+    const endpoint = queryString ? `/campaigns?${queryString}` : '/campaigns';
+    
+    return this.request(endpoint, {
       method: 'GET',
       headers,
     });

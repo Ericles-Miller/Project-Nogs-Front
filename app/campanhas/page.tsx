@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
@@ -10,118 +10,66 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { MapPin, Calendar, Search, Filter, Heart, TrendingUp } from "lucide-react"
+import { MapPin, Calendar, Search, Filter, Heart, TrendingUp, Loader2 } from "lucide-react"
+import { apiService } from "@/lib/api"
+
+// Interface para as campanhas da API
+interface Campaign {
+  id: string;
+  title: string;
+  description: string;
+  goalAmount: string; // Vem como string do backend
+  currentAmount: string; // Vem como string do backend
+  startDate: string;
+  endDate: string;
+  status: string;
+  category: string;
+  ngoId: string;
+  createdAt: string;
+}
 
 const categorias = [
-  "Saúde",
-  "Educação",
-  "Meio Ambiente",
-  "Assistência Social",
-  "Emergência",
-  "Cultura",
-  "Esporte",
-  "Animais",
-]
-
-const campanhas = [
-  {
-    id: 1,
-    titulo: "Reforma da Escola Municipal",
-    descricao: "Ajude a reformar a escola que atende 300 crianças da comunidade Vila Esperança.",
-    categoria: "Educação",
-    meta: 50000,
-    arrecadado: 32500,
-    doadores: 127,
-    diasRestantes: 15,
-    organizacao: "Associação de Pais Vila Esperança",
-    cidade: "São Paulo",
-    estado: "SP",
-    status: "Ativa",
-    urgente: false,
-  },
-  {
-    id: 2,
-    titulo: "Tratamento para Maria",
-    descricao: "Maria, de 8 anos, precisa de cirurgia urgente. Sua família não tem condições de pagar.",
-    categoria: "Saúde",
-    meta: 25000,
-    arrecadado: 18750,
-    doadores: 89,
-    diasRestantes: 7,
-    organizacao: "Família Silva",
-    cidade: "Rio de Janeiro",
-    estado: "RJ",
-    status: "Ativa",
-    urgente: true,
-  },
-  {
-    id: 3,
-    titulo: "Plantio de 1000 Árvores",
-    descricao: "Campanha para plantar árvores nativas no Parque Municipal e combater o desmatamento.",
-    categoria: "Meio Ambiente",
-    meta: 15000,
-    arrecadado: 12300,
-    doadores: 156,
-    diasRestantes: 30,
-    organizacao: "Verde Vida BH",
-    cidade: "Belo Horizonte",
-    estado: "MG",
-    status: "Ativa",
-    urgente: false,
-  },
-  {
-    id: 4,
-    titulo: "Cesta Básica para Famílias",
-    descricao: "Distribuição de cestas básicas para 100 famílias em situação de vulnerabilidade.",
-    categoria: "Assistência Social",
-    meta: 20000,
-    arrecadado: 20000,
-    doadores: 203,
-    diasRestantes: 0,
-    organizacao: "Ação Solidária RS",
-    cidade: "Porto Alegre",
-    estado: "RS",
-    status: "Concluída",
-    urgente: false,
-  },
-  {
-    id: 5,
-    titulo: "Biblioteca Comunitária",
-    descricao: "Construção de uma biblioteca comunitária com 2000 livros para a comunidade.",
-    categoria: "Educação",
-    meta: 35000,
-    arrecadado: 8750,
-    doadores: 45,
-    diasRestantes: 45,
-    organizacao: "Ler é Crescer",
-    cidade: "Salvador",
-    estado: "BA",
-    status: "Ativa",
-    urgente: false,
-  },
-  {
-    id: 6,
-    titulo: "Abrigo para Animais",
-    descricao: "Construção de um novo abrigo para cães e gatos abandonados com capacidade para 100 animais.",
-    categoria: "Animais",
-    meta: 80000,
-    arrecadado: 24000,
-    doadores: 78,
-    diasRestantes: 60,
-    organizacao: "Patinhas Carentes",
-    cidade: "Curitiba",
-    estado: "PR",
-    status: "Ativa",
-    urgente: false,
-  },
+  "campaign",
+  "opportunity"
 ]
 
 export default function CampanhasPage() {
+  const [campanhas, setCampanhas] = useState<Campaign[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
   const [filtros, setFiltros] = useState({
     busca: "",
     categoria: "Todas as categorias",
     status: "Todas",
   })
+
+  // Buscar campanhas da API
+  useEffect(() => {
+    fetchCampanhas()
+  }, [])
+
+  const fetchCampanhas = async () => {
+    try {
+      setIsLoading(true)
+      setError("")
+      
+      const response = await apiService.getCampaigns()
+      
+      if (response.error) {
+        setError(response.error)
+        return
+      }
+
+      if (response.data) {
+        setCampanhas(response.data)
+      }
+    } catch (err) {
+      setError("Erro ao carregar campanhas. Tente novamente.")
+      console.error("Erro ao buscar campanhas:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleFiltroChange = (campo: string, valor: string) => {
     setFiltros((prev) => ({ ...prev, [campo]: valor }))
@@ -129,9 +77,9 @@ export default function CampanhasPage() {
 
   const campanhasFiltradas = campanhas.filter((campanha) => {
     const matchBusca =
-      campanha.titulo.toLowerCase().includes(filtros.busca.toLowerCase()) ||
-      campanha.descricao.toLowerCase().includes(filtros.busca.toLowerCase())
-    const matchCategoria = filtros.categoria === "Todas as categorias" || campanha.categoria === filtros.categoria
+      campanha.title.toLowerCase().includes(filtros.busca.toLowerCase()) ||
+      campanha.description.toLowerCase().includes(filtros.busca.toLowerCase())
+    const matchCategoria = filtros.categoria === "Todas as categorias" || campanha.category === filtros.categoria
     const matchStatus = filtros.status === "Todas" || campanha.status === filtros.status
 
     return matchBusca && matchCategoria && matchStatus
@@ -146,6 +94,56 @@ export default function CampanhasPage() {
 
   const calcularProgresso = (arrecadado: number, meta: number) => {
     return Math.min((arrecadado / meta) * 100, 100)
+  }
+
+  const calcularDiasRestantes = (endDate: string) => {
+    const hoje = new Date()
+    const dataFim = new Date(endDate)
+    const diffTime = dataFim.getTime() - hoje.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays > 0 ? diffDays : 0
+  }
+
+  // Calcular estatísticas
+  const totalArrecadado = campanhas.reduce((total, campanha) => total + parseFloat(campanha.currentAmount), 0)
+  const campanhasAtivas = campanhas.filter(c => c.status === 'active').length
+  const campanhasConcluidas = campanhas.filter(c => c.status === 'completed').length
+  const totalDoadores = campanhas.length * 50 // Mock - em um sistema real viria da API
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+              <p>Carregando campanhas...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-20">
+            <div className="text-red-600 mb-4">
+              <Heart className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg">Erro ao carregar campanhas</p>
+              <p className="text-muted-foreground">{error}</p>
+            </div>
+            <Button onClick={fetchCampanhas} variant="outline">
+              Tentar Novamente
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -169,7 +167,7 @@ export default function CampanhasPage() {
                 <Heart className="h-8 w-8 text-primary" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-muted-foreground">Total Arrecadado</p>
-                  <p className="text-2xl font-bold text-foreground">R$ 116.300</p>
+                  <p className="text-2xl font-bold text-foreground">{formatarMoeda(totalArrecadado)}</p>
                 </div>
               </div>
             </CardContent>
@@ -181,7 +179,7 @@ export default function CampanhasPage() {
                 <TrendingUp className="h-8 w-8 text-primary" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-muted-foreground">Campanhas Ativas</p>
-                  <p className="text-2xl font-bold text-foreground">5</p>
+                  <p className="text-2xl font-bold text-foreground">{campanhasAtivas}</p>
                 </div>
               </div>
             </CardContent>
@@ -195,7 +193,7 @@ export default function CampanhasPage() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-muted-foreground">Total de Doadores</p>
-                  <p className="text-2xl font-bold text-foreground">698</p>
+                  <p className="text-2xl font-bold text-foreground">{totalDoadores}</p>
                 </div>
               </div>
             </CardContent>
@@ -209,7 +207,7 @@ export default function CampanhasPage() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-muted-foreground">Concluídas</p>
-                  <p className="text-2xl font-bold text-foreground">1</p>
+                  <p className="text-2xl font-bold text-foreground">{campanhasConcluidas}</p>
                 </div>
               </div>
             </CardContent>
@@ -266,8 +264,9 @@ export default function CampanhasPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Todas">Todas</SelectItem>
-                    <SelectItem value="Ativa">Ativas</SelectItem>
-                    <SelectItem value="Concluída">Concluídas</SelectItem>
+                    <SelectItem value="active">Ativas</SelectItem>
+                    <SelectItem value="completed">Concluídas</SelectItem>
+                    <SelectItem value="cancelled">Canceladas</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -290,96 +289,104 @@ export default function CampanhasPage() {
 
         {/* Lista de Campanhas */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {campanhasFiltradas.map((campanha) => (
-            <Card key={campanha.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex justify-between items-start mb-2">
-                  <Badge variant="secondary">{campanha.categoria}</Badge>
-                  <div className="flex gap-2">
-                    {campanha.urgente && (
-                      <Badge variant="destructive" className="text-xs">
-                        Urgente
+          {campanhasFiltradas.map((campanha) => {
+            const diasRestantes = calcularDiasRestantes(campanha.endDate)
+            const isUrgente = diasRestantes <= 7 && campanha.status === 'active'
+            
+            return (
+              <Card key={campanha.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                                     <div className="flex justify-between items-start mb-2">
+                     <Badge variant="secondary">{campanha.category}</Badge>
+                    <div className="flex gap-2">
+                      {isUrgente && (
+                        <Badge variant="destructive" className="text-xs">
+                          Urgente
+                        </Badge>
+                      )}
+                      <Badge
+                        variant="outline"
+                        className={
+                          campanha.status === "active"
+                            ? "text-green-600 border-green-600"
+                            : campanha.status === "completed"
+                            ? "text-blue-600 border-blue-600"
+                            : "text-red-600 border-red-600"
+                        }
+                      >
+                        {campanha.status === 'active' ? 'Ativa' : 
+                         campanha.status === 'completed' ? 'Concluída' : 'Cancelada'}
                       </Badge>
-                    )}
-                    <Badge
-                      variant="outline"
-                      className={
-                        campanha.status === "Ativa"
-                          ? "text-green-600 border-green-600"
-                          : "text-blue-600 border-blue-600"
-                      }
-                    >
-                      {campanha.status}
-                    </Badge>
-                  </div>
-                </div>
-                <CardTitle className="text-xl">{campanha.titulo}</CardTitle>
-                <CardDescription className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  {campanha.cidade}, {campanha.estado}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground mb-4 line-clamp-3">{campanha.descricao}</p>
-
-                <div className="space-y-4">
-                  {/* Progresso */}
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-medium">Progresso</span>
-                      <span className="text-sm text-muted-foreground">
-                        {Math.round(calcularProgresso(campanha.arrecadado, campanha.meta))}%
-                      </span>
                     </div>
-                    <Progress value={calcularProgresso(campanha.arrecadado, campanha.meta)} className="h-2" />
                   </div>
+                  <CardTitle className="text-xl">{campanha.title}</CardTitle>
+                  <CardDescription className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Criada em {new Date(campanha.createdAt).toLocaleDateString('pt-BR')}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground mb-4 line-clamp-3">{campanha.description}</p>
 
-                  {/* Valores */}
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="space-y-4">
+                    {/* Progresso */}
                     <div>
-                      <p className="text-muted-foreground">Arrecadado</p>
-                      <p className="font-semibold text-primary">{formatarMoeda(campanha.arrecadado)}</p>
+                                           <div className="flex justify-between items-center mb-2">
+                       <span className="text-sm font-medium">Progresso</span>
+                       <span className="text-sm text-muted-foreground">
+                         {Math.round(calcularProgresso(parseFloat(campanha.currentAmount), parseFloat(campanha.goalAmount)))}%
+                       </span>
+                     </div>
+                     <Progress value={calcularProgresso(parseFloat(campanha.currentAmount), parseFloat(campanha.goalAmount))} className="h-2" />
                     </div>
-                    <div>
-                      <p className="text-muted-foreground">Meta</p>
-                      <p className="font-semibold">{formatarMoeda(campanha.meta)}</p>
-                    </div>
-                  </div>
 
-                  {/* Info adicional */}
-                  <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Heart className="h-4 w-4" />
-                      <span>{campanha.doadores} doadores</span>
-                    </div>
-                    {campanha.status === "Ativa" && (
+                    {/* Valores */}
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                       <div>
+                         <p className="text-muted-foreground">Arrecadado</p>
+                         <p className="font-semibold text-primary">{formatarMoeda(parseFloat(campanha.currentAmount))}</p>
+                       </div>
+                       <div>
+                         <p className="text-muted-foreground">Meta</p>
+                         <p className="font-semibold">{formatarMoeda(parseFloat(campanha.goalAmount))}</p>
+                       </div>
+                     </div>
+
+                    {/* Info adicional */}
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        <span>{campanha.diasRestantes} dias restantes</span>
+                        <Heart className="h-4 w-4" />
+                        <span>50 doadores</span>
                       </div>
+                      {campanha.status === "active" && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4" />
+                          <span>{diasRestantes} dias restantes</span>
+                        </div>
+                      )}
+                    </div>
+
+                                         <div className="text-sm text-muted-foreground">
+                       <strong>Organização:</strong> {campanha.ngoId}
+                     </div>
+                  </div>
+
+                  <div className="flex gap-2 mt-4">
+                    <Link href={`/campanhas/${campanha.id}`} className="flex-1">
+                      <Button variant="outline" className="w-full bg-transparent">
+                        Ver Detalhes
+                      </Button>
+                    </Link>
+                    {campanha.status === "active" && (
+                      <Link href={`/campanhas/${campanha.id}`} className="flex-1">
+                        <Button className="w-full">Doar Agora</Button>
+                      </Link>
                     )}
                   </div>
-
-                  <div className="text-sm text-muted-foreground">
-                    <strong>Organização:</strong> {campanha.organizacao}
-                  </div>
-                </div>
-
-                <div className="flex gap-2 mt-4">
-                  <Link href={`/campanhas/${campanha.id}`} className="flex-1">
-                    <Button variant="outline" className="w-full bg-transparent">
-                      Ver Detalhes
-                    </Button>
-                  </Link>
-                  {campanha.status === "Ativa" && (
-                    <Link href={`/campanhas/${campanha.id}`} className="flex-1">
-                      <Button className="w-full">Doar Agora</Button>
-                    </Link>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
 
         {campanhasFiltradas.length === 0 && (
