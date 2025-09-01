@@ -202,11 +202,24 @@ export default function AdminPage() {
     title: "",
     description: "",
     location: "",
-    cause: "",
+    cause: "Educação", // Valor padrão para facilitar
     startDate: "",
     endDate: "",
     maxVolunteers: 1
   })
+
+  // Função para resetar o formulário
+  const resetForm = () => {
+    setNovoProjeto({
+      title: "",
+      description: "",
+      location: "",
+      cause: "Educação",
+      startDate: "",
+      endDate: "",
+      maxVolunteers: 1
+    })
+  }
 
   const formatarMoeda = (valor: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -285,10 +298,49 @@ export default function AdminPage() {
         return
       }
 
-      // Validar campos obrigatórios
-      if (!novoProjeto.title || !novoProjeto.description || !novoProjeto.location || 
-          !novoProjeto.cause || !novoProjeto.startDate || !novoProjeto.endDate) {
-        alert('Todos os campos são obrigatórios')
+      // Validar campos obrigatórios com logs detalhados
+      console.log('🔍 Validando campos:')
+      console.log('  - title:', novoProjeto.title, 'vazio:', !novoProjeto.title)
+      console.log('  - description:', novoProjeto.description, 'vazio:', !novoProjeto.description)
+      console.log('  - location:', novoProjeto.location, 'vazio:', !novoProjeto.location)
+      console.log('  - cause:', novoProjeto.cause, 'vazio:', !novoProjeto.cause)
+      console.log('  - startDate:', novoProjeto.startDate, 'vazio:', !novoProjeto.startDate)
+      console.log('  - endDate:', novoProjeto.endDate, 'vazio:', !novoProjeto.endDate)
+      console.log('  - maxVolunteers:', novoProjeto.maxVolunteers, 'vazio:', !novoProjeto.maxVolunteers)
+      
+      if (!novoProjeto.title?.trim()) {
+        alert('Título do projeto é obrigatório')
+        return
+      }
+      if (!novoProjeto.description?.trim()) {
+        alert('Descrição do projeto é obrigatória')
+        return
+      }
+      if (!novoProjeto.location?.trim()) {
+        alert('Localização do projeto é obrigatória')
+        return
+      }
+      if (!novoProjeto.cause?.trim()) {
+        alert('Causa do projeto é obrigatória')
+        return
+      }
+      if (!novoProjeto.startDate) {
+        alert('Data de início é obrigatória')
+        return
+      }
+      if (!novoProjeto.endDate) {
+        alert('Data de fim é obrigatória')
+        return
+      }
+      
+      // Validar se a data de fim é posterior à data de início
+      if (new Date(novoProjeto.endDate) <= new Date(novoProjeto.startDate)) {
+        alert('A data de fim deve ser posterior à data de início')
+        return
+      }
+      
+      if (!novoProjeto.maxVolunteers || novoProjeto.maxVolunteers < 1) {
+        alert('Número máximo de voluntários deve ser pelo menos 1')
         return
       }
 
@@ -309,15 +361,7 @@ export default function AdminPage() {
       alert('Projeto criado com sucesso!')
       
       // Limpar formulário
-      setNovoProjeto({
-        title: "",
-        description: "",
-        location: "",
-        cause: "",
-        startDate: "",
-        endDate: "",
-        maxVolunteers: 1
-      })
+      resetForm()
       
       // Fechar modal e recarregar projetos
       setShowCreateProject(false)
@@ -947,7 +991,23 @@ export default function AdminPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style={{ zIndex: 9999 }}>
           <div className="bg-background rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" style={{ backgroundColor: 'white' }}>
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Criar Novo Projeto</h2>
+              <div>
+                <h2 className="text-2xl font-bold">Criar Novo Projeto</h2>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="text-sm text-muted-foreground">Progresso:</div>
+                  <div className="flex gap-1">
+                    {[
+                      novoProjeto.title?.trim(),
+                      novoProjeto.description?.trim(),
+                      novoProjeto.location?.trim(),
+                      novoProjeto.cause?.trim(),
+                      novoProjeto.startDate,
+                      novoProjeto.endDate,
+                      novoProjeto.maxVolunteers > 0
+                    ].filter(Boolean).length}/7 campos preenchidos
+                  </div>
+                </div>
+              </div>
               <Button
                 variant="ghost"
                 size="sm"
@@ -960,18 +1020,27 @@ export default function AdminPage() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Título do Projeto</label>
+                <label className="block text-sm font-medium mb-2">
+                  Título do Projeto
+                  {novoProjeto.title?.trim() && <span className="text-green-600 ml-1">✓</span>}
+                </label>
                 <Input
                   placeholder="Ex: Educação para Todos"
                   value={novoProjeto.title}
                   onChange={(e) => setNovoProjeto(prev => ({ ...prev, title: e.target.value }))}
+                  className={novoProjeto.title?.trim() ? 'border-green-500' : ''}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Descrição</label>
+                <label className="block text-sm font-medium mb-2">
+                  Descrição
+                  {novoProjeto.description?.trim() && <span className="text-green-600 ml-1">✓</span>}
+                </label>
                 <textarea
-                  className="w-full p-3 border border-input rounded-md resize-none h-24"
+                  className={`w-full p-3 border rounded-md resize-none h-24 ${
+                    novoProjeto.description?.trim() ? 'border-green-500' : 'border-input'
+                  }`}
                   placeholder="Descreva o projeto em detalhes..."
                   value={novoProjeto.description}
                   onChange={(e) => setNovoProjeto(prev => ({ ...prev, description: e.target.value }))}
@@ -980,21 +1049,28 @@ export default function AdminPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Localização</label>
+                  <label className="block text-sm font-medium mb-2">
+                    Localização
+                    {novoProjeto.location?.trim() && <span className="text-green-600 ml-1">✓</span>}
+                  </label>
                   <Input
                     placeholder="Ex: São Paulo, SP"
                     value={novoProjeto.location}
                     onChange={(e) => setNovoProjeto(prev => ({ ...prev, location: e.target.value }))}
+                    className={novoProjeto.location?.trim() ? 'border-green-500' : ''}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Causa</label>
+                  <label className="block text-sm font-medium mb-2">
+                    Causa
+                    {novoProjeto.cause?.trim() && <span className="text-green-600 ml-1">✓</span>}
+                  </label>
                   <Select value={novoProjeto.cause} onValueChange={(value) => setNovoProjeto(prev => ({ ...prev, cause: value }))}>
-                    <SelectTrigger>
+                    <SelectTrigger className={novoProjeto.cause?.trim() ? 'border-green-500' : ''}>
                       <SelectValue placeholder="Selecione uma causa" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[9999]">
                       <SelectItem value="Educação">Educação</SelectItem>
                       <SelectItem value="Saúde">Saúde</SelectItem>
                       <SelectItem value="Meio ambiente">Meio ambiente</SelectItem>
@@ -1013,30 +1089,42 @@ export default function AdminPage() {
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Data de Início</label>
+                  <label className="block text-sm font-medium mb-2">
+                    Data de Início
+                    {novoProjeto.startDate && <span className="text-green-600 ml-1">✓</span>}
+                  </label>
                   <Input
                     type="date"
                     value={novoProjeto.startDate}
                     onChange={(e) => setNovoProjeto(prev => ({ ...prev, startDate: e.target.value }))}
+                    className={novoProjeto.startDate ? 'border-green-500' : ''}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Data de Fim</label>
+                  <label className="block text-sm font-medium mb-2">
+                    Data de Fim
+                    {novoProjeto.endDate && <span className="text-green-600 ml-1">✓</span>}
+                  </label>
                   <Input
                     type="date"
                     value={novoProjeto.endDate}
                     onChange={(e) => setNovoProjeto(prev => ({ ...prev, endDate: e.target.value }))}
+                    className={novoProjeto.endDate ? 'border-green-500' : ''}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Máx. Voluntários</label>
+                  <label className="block text-sm font-medium mb-2">
+                    Máx. Voluntários
+                    {novoProjeto.maxVolunteers && novoProjeto.maxVolunteers > 0 && <span className="text-green-600 ml-1">✓</span>}
+                  </label>
                   <Input
                     type="number"
                     min="1"
                     value={novoProjeto.maxVolunteers}
                     onChange={(e) => setNovoProjeto(prev => ({ ...prev, maxVolunteers: parseInt(e.target.value) || 1 }))}
+                    className={novoProjeto.maxVolunteers && novoProjeto.maxVolunteers > 0 ? 'border-green-500' : ''}
                   />
                 </div>
               </div>
@@ -1055,6 +1143,13 @@ export default function AdminPage() {
                   ) : (
                     'Criar Projeto'
                   )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={resetForm}
+                  disabled={creatingProject}
+                >
+                  Limpar
                 </Button>
                 <Button
                   variant="outline"
