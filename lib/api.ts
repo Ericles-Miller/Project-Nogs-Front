@@ -54,17 +54,52 @@ class ApiService {
     };
 
     try {
+      console.log(`🌐 Fazendo requisição para: ${url}`)
+      console.log(`📤 Configuração:`, config)
+      
       const response = await fetch(url, config);
-      const data = await response.json();
+      
+      console.log(`📥 Resposta recebida:`, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      })
+
+      // Para respostas vazias (como 204 No Content), retornar sucesso
+      if (response.status === 204) {
+        console.log("✅ Resposta 204 - Sucesso sem conteúdo")
+        return { message: "Operação realizada com sucesso" }
+      }
+
+      // Tentar fazer parse do JSON apenas se houver conteúdo
+      let data
+      const contentType = response.headers.get('content-type')
+      
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          data = await response.json()
+        } catch (jsonError) {
+          console.error("❌ Erro ao fazer parse do JSON:", jsonError)
+          return {
+            error: "Resposta inválida do servidor"
+          }
+        }
+      } else {
+        console.log("ℹ️ Resposta não é JSON, status:", response.status)
+        data = null
+      }
 
       if (!response.ok) {
+        console.error("❌ Erro na resposta:", response.status, response.statusText)
         return {
-          error: data.message || `Erro ${response.status}: ${response.statusText}`,
+          error: data?.message || `Erro ${response.status}: ${response.statusText}`,
         };
       }
 
+      console.log("✅ Resposta de sucesso:", data)
       return { data };
     } catch (error) {
+      console.error("💥 Erro na requisição:", error)
       return {
         error: error instanceof Error ? error.message : 'Erro de conexão',
       };
@@ -173,6 +208,32 @@ class ApiService {
     return this.request(`/campaigns/${id}`, {
       method: 'GET',
     });
+  }
+
+  async donateToCampaign(campaignId: string, donationData: {
+    amount: number;
+    donorName?: string;
+    donorEmail: string;
+    message?: string;
+    anonymous: boolean;
+  }): Promise<ApiResponse> {
+    try {
+      console.log("Enviando doação para:", `/campaigns/${campaignId}/donate`)
+      console.log("Dados da doação:", donationData)
+      
+      const response = await this.request(`/campaigns/${campaignId}/donate`, {
+        method: 'POST',
+        body: JSON.stringify(donationData),
+      });
+      
+      console.log("Resposta da API de doação:", response)
+      return response;
+    } catch (error) {
+      console.error("Erro na requisição de doação:", error);
+      return {
+        error: "Erro ao conectar com o servidor. Tente novamente.",
+      };
+    }
   }
 
   // User endpoints (autenticados)

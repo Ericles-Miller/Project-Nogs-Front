@@ -56,6 +56,12 @@ interface DonationForm {
 }
 
 export default function CampaignDetailPage() {
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+  
   const params = useParams()
   const router = useRouter()
   const campaignId = params.id as string
@@ -64,6 +70,8 @@ export default function CampaignDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
   const [showDonationForm, setShowDonationForm] = useState(false)
+  
+
   const [donationForm, setDonationForm] = useState<DonationForm>({
     amount: 0,
     donorName: "",
@@ -72,6 +80,7 @@ export default function CampaignDetailPage() {
     anonymous: false
   })
   const [isSubmittingDonation, setIsSubmittingDonation] = useState(false)
+  const [donationSuccess, setDonationSuccess] = useState(false)
 
   useEffect(() => {
     if (campaignId) {
@@ -92,7 +101,6 @@ export default function CampaignDetailPage() {
       }
 
       if (response.data) {
-        console.log("Dados da campanha recebidos:", response.data)
         setCampaign(response.data)
       }
     } catch (err) {
@@ -108,33 +116,50 @@ export default function CampaignDetailPage() {
     
     if (!campaign) return
     
+    // Validações
+    if (!donationForm.amount || donationForm.amount <= 0) {
+      alert("Por favor, insira um valor válido para a doação.")
+      return
+    }
+    
+    if (!donationForm.donorEmail) {
+      alert("Por favor, insira seu email.")
+      return
+    }
+    
+    if (!donationForm.donorName && !donationForm.anonymous) {
+      alert("Por favor, insira seu nome ou marque a opção de doação anônima.")
+      return
+    }
+    
     try {
       setIsSubmittingDonation(true)
       
-      const response = await fetch(`http://localhost:3333/api/campaigns/${campaignId}/donate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(donationForm),
-      })
+      const response = await apiService.donateToCampaign(campaignId, donationForm)
 
-      if (response.ok) {
-        alert("Doação realizada com sucesso! Obrigado pela sua contribuição.")
-        setShowDonationForm(false)
-        setDonationForm({
-          amount: 0,
-          donorName: "",
-          donorEmail: "",
-          message: "",
-          anonymous: false
-        })
-        // Recarregar dados da campanha para atualizar valores
-        fetchCampaignDetails()
-      } else {
-        const errorData = await response.json()
-        alert(`Erro ao realizar doação: ${errorData.message || 'Tente novamente'}`)
+      if (response.error) {
+        alert(`Erro ao realizar doação: ${response.error}`)
+        return
       }
+
+      // Considerar sucesso se não houver erro
+      console.log("✅ Doação realizada com sucesso!")
+      setDonationSuccess(true)
+      setShowDonationForm(false)
+      setDonationForm({
+        amount: 0,
+        donorName: "",
+        donorEmail: "",
+        message: "",
+        anonymous: false
+      })
+      
+      // Recarregar dados da campanha para atualizar valores
+      fetchCampaignDetails()
+      
+      // Limpar mensagem de sucesso após 5 segundos
+      setTimeout(() => setDonationSuccess(false), 5000)
+      
     } catch (error) {
       console.error("Erro ao doar:", error)
       alert("Erro ao realizar doação. Tente novamente.")
@@ -166,6 +191,10 @@ export default function CampaignDetailPage() {
     const diffTime = dataFim.getTime() - hoje.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     return diffDays > 0 ? diffDays : 0
+  }
+
+  if (!mounted) {
+    return null
   }
 
   if (isLoading) {
@@ -232,6 +261,19 @@ export default function CampaignDetailPage() {
           Voltar para Campanhas
         </Button>
 
+        {/* Mensagem de Sucesso */}
+        {donationSuccess && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center gap-2 text-green-800">
+              <Heart className="h-5 w-5 text-green-600" />
+              <span className="font-medium">Doação realizada com sucesso!</span>
+            </div>
+            <p className="text-green-700 mt-1">
+              Obrigado pela sua contribuição! Sua doação foi processada e os dados da campanha foram atualizados.
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Coluna Principal - Detalhes da Campanha */}
           <div className="lg:col-span-2 space-y-6">
@@ -248,14 +290,14 @@ export default function CampaignDetailPage() {
                       <Badge variant="outline">{campaign.category}</Badge>
                     </div>
                   </div>
-                  <Button
-                    onClick={() => setShowDonationForm(true)}
-                    className="bg-green-600 hover:bg-green-700"
-                    disabled={campaign.status !== 'active'}
-                  >
-                    <Heart className="h-4 w-4 mr-2" />
-                    Doar Agora
-                  </Button>
+                                     <Button
+                     onClick={() => setShowDonationForm(true)}
+                     className="bg-green-600 hover:bg-green-700"
+                     disabled={campaign.status !== 'active'}
+                   >
+                     <Heart className="h-4 w-4 mr-2" />
+                     Doar Agora
+                   </Button>
                 </div>
               </CardHeader>
               
@@ -396,30 +438,56 @@ export default function CampaignDetailPage() {
 
         {/* Modal de Doação */}
         {showDonationForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <Card className="w-full max-w-md">
-              <CardHeader>
-                <CardTitle>Fazer Doação</CardTitle>
-                <CardDescription>
-                  Contribua para a campanha "{campaign.title}"
-                </CardDescription>
-              </CardHeader>
+          <>
+            {/* Backdrop sutil */}
+            <div className="fixed inset-0 bg-gray-900 bg-opacity-10 z-[999999]" />
+            
+            {/* Modal */}
+            <div className="fixed inset-0 flex items-center justify-center z-[9999999] p-4">
+                            <Card className="w-full max-w-md shadow-2xl border-2 border-green-200 bg-white animate-in fade-in-0 zoom-in-95 duration-200">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Fazer Doação</CardTitle>
+                      <CardDescription>
+                        Contribua para a campanha "{campaign.title}"
+                      </CardDescription>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowDonationForm(false)}
+                      className="h-8 w-8 p-0 hover:bg-gray-100"
+                    >
+                      <span className="sr-only">Fechar</span>
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </Button>
+                  </div>
+                </CardHeader>
               
               <CardContent>
                 <form onSubmit={handleDonationSubmit} className="space-y-4">
-                  <div>
-                    <Label htmlFor="amount">Valor da Doação (R$)</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      step="0.01"
-                      min="1"
-                      value={donationForm.amount}
-                      onChange={(e) => setDonationForm(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
-                      placeholder="50.00"
-                      required
-                    />
-                  </div>
+                                       <div>
+                       <Label htmlFor="amount">Valor da Doação (R$) *</Label>
+                       <Input
+                         id="amount"
+                         type="number"
+                         step="0.01"
+                         min="1"
+                         value={donationForm.amount}
+                         onChange={(e) => setDonationForm(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                         placeholder="50.00"
+                         required
+                         className={donationForm.amount > 0 ? "border-green-500" : ""}
+                       />
+                       {donationForm.amount > 0 && (
+                         <p className="text-sm text-green-600 mt-1">
+                           ✓ Valor válido
+                         </p>
+                       )}
+                     </div>
                   
                   <div>
                     <Label htmlFor="donorName">Nome (opcional)</Label>
@@ -431,17 +499,23 @@ export default function CampaignDetailPage() {
                     />
                   </div>
                   
-                  <div>
-                    <Label htmlFor="donorEmail">Email</Label>
-                    <Input
-                      id="donorEmail"
-                      type="email"
-                      value={donationForm.donorEmail}
-                      onChange={(e) => setDonationForm(prev => ({ ...prev, donorEmail: e.target.value }))}
-                      placeholder="seu@email.com"
-                      required
-                    />
-                  </div>
+                                     <div>
+                     <Label htmlFor="donorEmail">Email *</Label>
+                     <Input
+                       id="donorEmail"
+                       type="email"
+                       value={donationForm.donorEmail}
+                       onChange={(e) => setDonationForm(prev => ({ ...prev, donorEmail: e.target.value }))}
+                       placeholder="seu@email.com"
+                       required
+                       className={donationForm.donorEmail && donationForm.donorEmail.includes('@') ? "border-green-500" : ""}
+                     />
+                     {donationForm.donorEmail && donationForm.donorEmail.includes('@') && (
+                       <p className="text-sm text-green-600 mt-1">
+                         ✓ Email válido
+                       </p>
+                     )}
+                   </div>
                   
                   <div>
                     <Label htmlFor="message">Mensagem (opcional)</Label>
@@ -490,11 +564,12 @@ export default function CampaignDetailPage() {
                       )}
                     </Button>
                   </div>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+                                 </form>
+               </CardContent>
+             </Card>
+           </div>
+           </>
+         )}
       </div>
     </div>
   )
