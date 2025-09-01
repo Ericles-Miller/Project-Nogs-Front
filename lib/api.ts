@@ -106,6 +106,30 @@ class ApiService {
     });
   }
 
+  async getProjectById(id: string, token?: string): Promise<ApiResponse> {
+    const headers: any = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    return this.request(`/projects/${id}`, {
+      method: 'GET',
+      headers,
+    });
+  }
+
+  async getNgoById(id: string, token?: string): Promise<ApiResponse> {
+    const headers: any = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    return this.request(`/ngos/${id}`, {
+      method: 'GET',
+      headers,
+    });
+  }
+
   async getCampaigns(token?: string): Promise<ApiResponse> {
     const headers: any = {};
     if (token) {
@@ -126,6 +150,63 @@ class ApiService {
         Authorization: `Bearer ${token}`,
       },
     });
+  }
+
+  async joinProject(projectId: string, status: string = 'pending', notes?: string, token?: string): Promise<ApiResponse> {
+    if (!token) {
+      return { error: 'Token de autenticação é obrigatório para participar de projetos' };
+    }
+
+    // Validar status permitidos
+    if (status !== 'pending' && status !== 'approved' && status !== 'rejected') {
+      return { error: 'Status inválido. Use: pending, approved ou rejected' };
+    }
+
+    const headers: any = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+    
+    const body = {
+      id: projectId,
+      status: status,
+      notes: notes || 'Interesse em participar do projeto'
+    };
+    
+    try {
+      const url = `${API_BASE_URL}/projects/join`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      // Se o status for 201 (Created), consideramos sucesso mesmo sem JSON
+      if (response.status === 201) {
+        return { data: { success: true, message: 'Inscrição realizada com sucesso' } };
+      }
+
+      // Para outros status, tentamos ler o JSON
+      if (response.ok) {
+        try {
+          const data = await response.json();
+          return { data };
+        } catch (jsonError) {
+          // Se não conseguir ler JSON mas o status for OK, consideramos sucesso
+          return { data: { success: true, message: 'Inscrição realizada com sucesso' } };
+        }
+      }
+
+      // Para erros, tentamos ler a mensagem de erro
+      try {
+        const errorData = await response.json();
+        return { error: errorData.message || `Erro ${response.status}: ${response.statusText}` };
+      } catch (jsonError) {
+        return { error: `Erro ${response.status}: ${response.statusText}` };
+      }
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : 'Erro de conexão' };
+    }
   }
 }
 
