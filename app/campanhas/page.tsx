@@ -26,6 +26,7 @@ interface Campaign {
   category: string;
   ngoId: string;
   createdAt: string;
+  numberOfDonations?: number; // Número de pessoas que doaram
 }
 
 // Interface para as ONGs
@@ -47,6 +48,7 @@ const categorias = [
 export default function CampanhasPage() {
   const [campanhas, setCampanhas] = useState<Campaign[]>([])
   const [ngos, setNgos] = useState<{ [key: string]: Ngo }>({})
+
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
   const [filtros, setFiltros] = useState({
@@ -77,6 +79,8 @@ export default function CampanhasPage() {
         
         // Buscar informações das ONGs para cada campanha
         await fetchNgosInfo(response.data)
+        
+
       }
     } catch (err) {
       setError("Erro ao carregar campanhas. Tente novamente.")
@@ -107,6 +111,8 @@ export default function CampanhasPage() {
       console.error("Erro ao buscar informações das ONGs:", error)
     }
   }
+
+
 
   const handleFiltroChange = (campo: string, valor: string) => {
     setFiltros((prev) => ({ ...prev, [campo]: valor }))
@@ -145,7 +151,9 @@ export default function CampanhasPage() {
   const totalArrecadado = campanhas.reduce((total, campanha) => total + parseFloat(campanha.currentAmount), 0)
   const campanhasAtivas = campanhas.filter(c => c.status === 'active').length
   const campanhasConcluidas = campanhas.filter(c => c.status === 'completed').length
-  const totalDoadores = campanhas.length * 50 // Mock - em um sistema real viria da API
+  
+  // Calcular total de doadores usando o campo numberOfDonations das campanhas
+  const totalDoadores = campanhas.reduce((total, campanha) => total + (campanha.numberOfDonations || 0), 0)
 
   if (isLoading) {
     return (
@@ -390,11 +398,11 @@ export default function CampanhasPage() {
                      </div>
 
                     {/* Info adicional */}
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <Heart className="h-4 w-4" />
-                        <span>50 doadores</span>
-                      </div>
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                       <div className="flex items-center gap-2">
+                         <Heart className="h-4 w-4" />
+                         <span>{campanha.numberOfDonations || 0} doadores</span>
+                       </div>
                       {campanha.status === "active" && (
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4" />
