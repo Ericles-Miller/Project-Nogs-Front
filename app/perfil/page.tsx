@@ -58,10 +58,11 @@ const dadosIniciais = {
   telefone: "",
   dataIngresso: "",
   avatar: "",
-  skills: [],
+  skills: [] as string[],
   experience: "",
-  preferredCauses: [],
-  userType: ""
+  preferredCauses: [] as string[],
+  userType: "",
+  novaSenha: ""
 }
 
 const estatisticasPerfil = {
@@ -89,7 +90,7 @@ const interessesDisponiveis = [
 export default function PerfilPage() {
   const router = useRouter()
   const [dadosUsuario, setDadosUsuario] = useState(dadosIniciais)
-  const [interessesSelecionados, setInteressesSelecionados] = useState([])
+  const [interessesSelecionados, setInteressesSelecionados] = useState<string[]>([])
   const [modoEdicao, setModoEdicao] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingProfile, setIsLoadingProfile] = useState(true)
@@ -143,7 +144,8 @@ export default function PerfilPage() {
           skills: userData.skills || [],
           experience: userData.experience || "",
           preferredCauses: userData.preferredCauses || [],
-          userType: userData.userType || ""
+          userType: userData.userType || "",
+          novaSenha: "" // Campo para nova senha
         }
 
         setDadosUsuario(mappedData)
@@ -178,19 +180,99 @@ export default function PerfilPage() {
     )
   }
 
+  const toggleSkill = (skill: string) => {
+    setDadosUsuario((prev) => ({
+      ...prev,
+      skills: prev.skills?.includes(skill) 
+        ? prev.skills.filter((s) => s !== skill)
+        : [...(prev.skills || []), skill]
+    }))
+  }
+
   const handleSalvar = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setSuccess("")
+    setError("")
+
+    const token = localStorage.getItem('auth_token')
+    
+    if (!token) {
+      setError("Token de autenticação não encontrado. Faça login novamente.")
+      setIsLoading(false)
+      return
+    }
 
     try {
-      // Simular chamada de API
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      console.log("🔄 Salvando perfil...")
+      
+      // Preparar dados para enviar para a API
+      const updateData: any = {
+        name: dadosUsuario.nome,
+        city: dadosUsuario.cidade,
+        state: dadosUsuario.estado,
+        userType: dadosUsuario.userType,
+        skills: dadosUsuario.skills,
+        experience: dadosUsuario.biografia, // Mapear biografia para experience
+        preferredCauses: interessesSelecionados
+      }
 
-      setSuccess("Perfil atualizado com sucesso!")
-      setModoEdicao(false)
+      // Adicionar nova senha apenas se fornecida
+      if (dadosUsuario.novaSenha && dadosUsuario.novaSenha.trim().length >= 6) {
+        updateData.password = dadosUsuario.novaSenha
+        console.log("🔑 Nova senha incluída na atualização")
+      }
+
+      console.log("📤 Dados para atualização:", updateData)
+
+      const response = await fetch('http://localhost:3333/api/users/profile', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      })
+
+      console.log("📥 Resposta do update:", response.status, response.statusText)
+
+      if (response.ok) {
+        const updatedUserData = await response.json()
+        console.log("✅ Perfil atualizado:", updatedUserData)
+        
+                 // Atualizar dados locais com a resposta da API
+         const mappedData = {
+           nome: updatedUserData.name || dadosUsuario.nome,
+           email: updatedUserData.email || dadosUsuario.email,
+           cidade: updatedUserData.city || dadosUsuario.cidade,
+           estado: updatedUserData.state || dadosUsuario.estado,
+           biografia: updatedUserData.experience || dadosUsuario.biografia,
+           telefone: dadosUsuario.telefone, // Manter campo não editável
+           dataIngresso: updatedUserData.createdAt ? new Date(updatedUserData.createdAt).toLocaleDateString('pt-BR', { 
+             year: 'numeric', 
+             month: 'long' 
+           }) : dadosUsuario.dataIngresso,
+           avatar: dadosUsuario.avatar, // Manter campo não editável
+           skills: updatedUserData.skills || dadosUsuario.skills,
+           experience: updatedUserData.experience || dadosUsuario.experience,
+           preferredCauses: updatedUserData.preferredCauses || interessesSelecionados,
+           userType: updatedUserData.userType || dadosUsuario.userType,
+           novaSenha: "" // Resetar campo de nova senha
+         }
+
+        setDadosUsuario(mappedData)
+        setInteressesSelecionados(updatedUserData.preferredCauses || interessesSelecionados)
+        
+        setSuccess("Perfil atualizado com sucesso!")
+        setModoEdicao(false)
+      } else {
+        const errorData = await response.json()
+        console.error("❌ Erro ao atualizar perfil:", errorData)
+        setError(errorData.message || `Erro ${response.status}: ${response.statusText}`)
+      }
     } catch (error) {
-      console.error("Erro ao salvar perfil:", error)
+      console.error("💥 Erro na requisição:", error)
+      setError("Erro ao conectar com o servidor. Tente novamente.")
     } finally {
       setIsLoading(false)
     }
@@ -432,23 +514,51 @@ export default function PerfilPage() {
                         type="email"
                         value={dadosUsuario.email}
                         onChange={handleInputChange}
-                        disabled={!modoEdicao}
+                        disabled={true} // Sempre desabilitado - não pode ser alterado
                         required
+                        className="bg-muted cursor-not-allowed"
                       />
+                      <p className="text-xs text-muted-foreground">O email não pode ser alterado</p>
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="telefone">Telefone</Label>
-                    <Input
-                      id="telefone"
-                      name="telefone"
-                      value={dadosUsuario.telefone}
-                      onChange={handleInputChange}
+                    <Label htmlFor="userType">Tipo de Usuário</Label>
+                    <Select
+                      value={dadosUsuario.userType}
+                      onValueChange={(value) => handleSelectChange("userType", value)}
                       disabled={!modoEdicao}
-                      placeholder="(11) 99999-9999"
-                    />
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o tipo de usuário" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="volunteer">Voluntário</SelectItem>
+                        <SelectItem value="ngo">ONG</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+
+                  {modoEdicao && (
+                    <div className="space-y-2">
+                      <Label htmlFor="novaSenha">Nova Senha (opcional)</Label>
+                      <Input
+                        id="novaSenha"
+                        name="novaSenha"
+                        type="password"
+                        placeholder="Deixe em branco para manter a senha atual"
+                        onChange={(e) => {
+                          // Armazenar nova senha se fornecida
+                          if (e.target.value.trim()) {
+                            setDadosUsuario(prev => ({ ...prev, novaSenha: e.target.value }))
+                          }
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Mínimo 6 caracteres. Deixe em branco para não alterar.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -497,23 +607,43 @@ export default function PerfilPage() {
                   </div>
 
                   {modoEdicao && (
-                    <div className="space-y-3">
-                      <Label>Áreas de Interesse</Label>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {interessesDisponiveis.map((interesse) => (
-                          <Button
-                            key={interesse}
-                            type="button"
-                            variant={interessesSelecionados.includes(interesse) ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => toggleInteresse(interesse)}
-                            className="justify-start"
-                          >
-                            {interesse}
-                          </Button>
-                        ))}
+                    <>
+                      <div className="space-y-3">
+                        <Label>Áreas de Interesse</Label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {interessesDisponiveis.map((interesse) => (
+                            <Button
+                              key={interesse}
+                              type="button"
+                              variant={interessesSelecionados.includes(interesse) ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => toggleInteresse(interesse)}
+                              className="justify-start"
+                            >
+                              {interesse}
+                            </Button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+
+                      <div className="space-y-3">
+                        <Label>Habilidades</Label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {interessesDisponiveis.map((habilidade) => (
+                            <Button
+                              key={habilidade}
+                              type="button"
+                              variant={dadosUsuario.skills?.includes(habilidade) ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => toggleSkill(habilidade)}
+                              className="justify-start"
+                            >
+                              {habilidade}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
                   )}
                 </form>
               </CardContent>
@@ -531,7 +661,13 @@ export default function PerfilPage() {
                     <h3 className="font-medium">Alterar Senha</h3>
                     <p className="text-sm text-muted-foreground">Atualize sua senha para manter sua conta segura</p>
                   </div>
-                  <Button variant="outline">Alterar</Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setModoEdicao(true)}
+                    disabled={modoEdicao}
+                  >
+                    {modoEdicao ? "Em Edição" : "Alterar"}
+                  </Button>
                 </div>
 
                 <div className="flex justify-between items-center p-4 border rounded-lg">
