@@ -1,4 +1,5 @@
 "use client"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
@@ -6,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Heart, Users, Clock, TrendingUp, Calendar, Award, Target, Activity, Gift, User, Settings } from "lucide-react"
+import { Heart, Users, Clock, TrendingUp, Calendar, Award, Target, Activity, Gift, User, Settings, Loader2 } from "lucide-react"
+import { useAuthCheck } from "@/hooks/useAuthCheck"
 
 // Dados mockados do usuário
 const dadosUsuario = {
@@ -130,11 +132,83 @@ const conquistas = [
 ]
 
 export default function DashboardPage() {
+  const { isAuthenticated, isLoading, user } = useAuthCheck();
+  const [projects, setProjects] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
+  const [userStats, setUserStats] = useState({
+    horasVoluntariado: 0,
+    projetosAtivos: 0,
+    projetosConcluidos: 0,
+    doacoesRealizadas: 0,
+    valorDoado: 0,
+    impactoGerado: 0
+  });
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      fetchDashboardData();
+    }
+  }, [isAuthenticated, user]);
+
+  const fetchDashboardData = async () => {
+    const token = localStorage.getItem('auth_token');
+    
+    try {
+      // Buscar projetos
+      const projectsResponse = await fetch('http://localhost:3333/api/projects', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (projectsResponse.ok) {
+        const projectsData = await projectsResponse.json();
+        setProjects(projectsData);
+        console.log("📋 Projetos carregados:", projectsData);
+      }
+
+      // Buscar campanhas
+      const campaignsResponse = await fetch('http://localhost:3333/api/campaigns', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (campaignsResponse.ok) {
+        const campaignsData = await campaignsResponse.json();
+        setCampaigns(campaignsData);
+        console.log("🎯 Campanhas carregadas:", campaignsData);
+      }
+
+    } catch (error) {
+      console.error("💥 Erro ao carregar dados:", error);
+    }
+  };
+
   const formatarMoeda = (valor: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
     }).format(valor)
+  }
+
+  // Mostrar loading enquanto verifica autenticação
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Verificando autenticação...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Se não estiver autenticado, não mostrar nada (será redirecionado)
+  if (!isAuthenticated) {
+    return null;
   }
 
   return (
@@ -146,7 +220,7 @@ export default function DashboardPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
             <h1 className="font-playfair font-bold text-3xl md:text-4xl text-foreground mb-2">
-              Olá, {dadosUsuario.nome}!
+              Olá, {user?.name || 'Usuário'}!
             </h1>
             <p className="text-lg text-muted-foreground">Acompanhe seu impacto e atividades na comunidade</p>
           </div>
