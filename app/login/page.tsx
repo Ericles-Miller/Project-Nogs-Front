@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +14,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Heart, Eye, EyeOff, Loader2 } from "lucide-react"
 
 export default function LoginPage() {
+  const router = useRouter()
+  
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -48,16 +51,44 @@ export default function LoginPage() {
     }
 
     try {
-      // Simular chamada de API
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      console.log("🚀 Tentando fazer login...")
+      console.log("📤 Dados enviados:", { email: formData.email, password: "***" })
+      
+      // Chamada real para a API do backend
+      const response = await fetch('http://localhost:3333/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': '*/*'
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password
+        }),
+      })
 
-      // Simular sucesso
-      setSuccess("Login realizado com sucesso! Redirecionando...")
-      setTimeout(() => {
-        window.location.href = "/dashboard"
-      }, 1000)
+      console.log("📥 Resposta do servidor:", response.status, response.statusText)
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log("🔑 Login bem-sucedido:", result)
+        
+        // Salvar token e dados do usuário
+        localStorage.setItem('auth_token', result.accessToken)
+        localStorage.setItem('auth_user', JSON.stringify(result.user))
+        
+        setSuccess("Login realizado com sucesso! Redirecionando para o dashboard...")
+        setTimeout(() => {
+          router.push("/dashboard")
+        }, 1500)
+      } else {
+        const errorResult = await response.json()
+        console.log("❌ Erro no login:", errorResult)
+        setError(errorResult.message || `Erro ${response.status}: ${response.statusText}`)
+      }
     } catch (err) {
-      setError("Email ou senha incorretos. Tente novamente.")
+      console.error("💥 Erro na requisição:", err)
+      setError("Erro ao conectar com o servidor. Verifique se o backend está rodando.")
     } finally {
       setIsLoading(false)
     }

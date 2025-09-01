@@ -219,44 +219,55 @@ export default function CadastroPage() {
       console.log("📤 Dados a serem enviados:", userData)
       console.log("🌐 URL do endpoint:", 'http://localhost:3333/api/auth/register')
 
-      // Tentar usar o register do useAuth primeiro
-      try {
-        const result = await register(userData)
+      // 1. Primeiro criar a conta
+      const registerResponse = await fetch('http://localhost:3333/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': '*/*'
+        },
+        body: JSON.stringify(userData),
+      })
+
+      console.log("📥 Resposta do registro:", registerResponse.status, registerResponse.statusText)
+
+      if (!registerResponse.ok) {
+        const errorResult = await registerResponse.json()
+        setError(errorResult.message || `Erro ${registerResponse.status}: ${registerResponse.statusText}`)
+        return
+      }
+
+      // 2. Se conta criada com sucesso, fazer login automático
+      console.log("🔄 Fazendo login automático...")
+      const loginResponse = await fetch('http://localhost:3333/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': '*/*'
+        },
+        body: JSON.stringify({
+          email: userData.email,
+          password: userData.password
+        }),
+      })
+
+      console.log("📥 Resposta do login:", loginResponse.status, loginResponse.statusText)
+
+      if (loginResponse.ok) {
+        const loginResult = await loginResponse.json()
+        console.log("🔑 Token recebido:", loginResult.accessToken)
         
-        if (result.success) {
-          setSuccess("Conta criada com sucesso! Redirecionando para o dashboard...")
-          setTimeout(() => {
-            router.push("/dashboard")
-          }, 1500)
-        } else {
-          setError(result.error || "Erro ao criar conta. Tente novamente.")
-        }
-      } catch (error) {
-        console.log("🔄 Fallback: chamada direta para a API")
+        // 3. Salvar token e dados do usuário
+        localStorage.setItem('auth_token', loginResult.accessToken)
+        localStorage.setItem('auth_user', JSON.stringify(loginResult.user))
         
-        // Fallback: chamada direta para a API do backend
-        const response = await fetch('http://localhost:3333/api/auth/register', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'accept': '*/*'
-          },
-          body: JSON.stringify(userData),
-        })
-
-        console.log("📥 Resposta do servidor:", response.status, response.statusText)
-
-        const result = await response.json()
-        console.log("📋 Dados da resposta:", result)
-
-        if (response.ok) {
-          setSuccess("Conta criada com sucesso! Redirecionando para o dashboard...")
-          setTimeout(() => {
-            router.push("/dashboard")
-          }, 1500)
-        } else {
-          setError(result.message || `Erro ${response.status}: ${response.statusText}`)
-        }
+        setSuccess("Conta criada e login realizado com sucesso! Redirecionando para o dashboard...")
+        setTimeout(() => {
+          router.push("/dashboard")
+        }, 1500)
+      } else {
+        const loginError = await loginResponse.json()
+        setError(`Conta criada, mas erro no login: ${loginError.message}`)
       }
     } catch (err) {
       console.error("💥 Erro na requisição:", err)
