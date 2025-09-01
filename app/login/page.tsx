@@ -11,10 +11,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Heart, Eye, EyeOff, Loader2 } from "lucide-react"
+import { Heart, Eye, EyeOff, Loader2, Building, Users } from "lucide-react"
+import { useAuth } from "@/hooks/useAuth"
 
 export default function LoginPage() {
   const router = useRouter()
+  const { login, loginNgo } = useAuth()
   
   const [formData, setFormData] = useState({
     email: "",
@@ -24,6 +26,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [userType, setUserType] = useState<"volunteer" | "ngo" | null>(null)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -54,38 +57,41 @@ export default function LoginPage() {
       console.log("🚀 Tentando fazer login...")
       console.log("📤 Dados enviados:", { email: formData.email, password: "***" })
       
-      // Chamada real para a API do backend
-      const response = await fetch('http://localhost:3333/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'accept': '*/*'
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password
-        }),
-      })
-
-      console.log("📥 Resposta do servidor:", response.status, response.statusText)
-
-      if (response.ok) {
-        const result = await response.json()
-        console.log("🔑 Login bem-sucedido:", result)
-        
-        // Salvar token e dados do usuário
-        localStorage.setItem('auth_token', result.accessToken)
-        localStorage.setItem('auth_user', JSON.stringify(result.user))
-        
-        setSuccess("Login realizado com sucesso! Redirecionando para o dashboard...")
-        setTimeout(() => {
-          router.push("/dashboard")
-        }, 1500)
-      } else {
-        const errorResult = await response.json()
-        console.log("❌ Erro no login:", errorResult)
-        setError(errorResult.message || `Erro ${response.status}: ${response.statusText}`)
+      let loginResult;
+      
+      // Primeiro, tentar login como voluntário
+      try {
+        loginResult = await login(formData);
+        if (loginResult.success) {
+          setUserType("volunteer");
+          setSuccess("Login como voluntário realizado com sucesso! Redirecionando para o dashboard...");
+          setTimeout(() => {
+            router.push("/dashboard");
+          }, 1500);
+          return;
+        }
+      } catch (volunteerError) {
+        console.log("❌ Login como voluntário falhou, tentando como ONG...");
       }
+      
+      // Se falhou como voluntário, tentar como ONG
+      try {
+        loginResult = await loginNgo(formData);
+        if (loginResult.success) {
+          setUserType("ngo");
+          setSuccess("Login como ONG realizado com sucesso! Redirecionando para o painel admin...");
+          setTimeout(() => {
+            router.push("/admin");
+          }, 1500);
+          return;
+        }
+      } catch (ngoError) {
+        console.log("❌ Login como ONG falhou");
+      }
+      
+      // Se ambos falharam, mostrar erro
+      setError("Email ou senha incorretos. Verifique suas credenciais.");
+      
     } catch (err) {
       console.error("💥 Erro na requisição:", err)
       setError("Erro ao conectar com o servidor. Verifique se o backend está rodando.")

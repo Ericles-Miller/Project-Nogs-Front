@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { apiService } from "@/lib/api"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,6 +29,7 @@ import {
   Heart,
   Building,
   Shield,
+  Loader2,
 } from "lucide-react"
 
 // Dados mockados para o painel administrativo
@@ -184,6 +186,40 @@ export default function AdminPage() {
   const [filtroStatusProjetos, setFiltroStatusProjetos] = useState("Todos")
   const [filtroCampanhas, setFiltroCampanhas] = useState("")
   const [filtroStatusCampanhas, setFiltroStatusCampanhas] = useState("Todos")
+  
+  // Estados para projetos dinâmicos
+  const [projetosDinamicos, setProjetosDinamicos] = useState<any[]>([])
+  const [isLoadingProjetos, setIsLoadingProjetos] = useState(false)
+  const [errorProjetos, setErrorProjetos] = useState("")
+  const [showCreateProject, setShowCreateProject] = useState(false)
+  const [creatingProject, setCreatingProject] = useState(false)
+  
+  // Debug temporário para verificar se o modal está funcionando
+  console.log('🔍 Estado showCreateProject:', showCreateProject)
+  
+  // Estados para formulário de criação de projeto
+  const [novoProjeto, setNovoProjeto] = useState({
+    title: "",
+    description: "",
+    location: "",
+    cause: "Educação", // Valor padrão para facilitar
+    startDate: "",
+    endDate: "",
+    maxVolunteers: 1
+  })
+
+  // Função para resetar o formulário
+  const resetForm = () => {
+    setNovoProjeto({
+      title: "",
+      description: "",
+      location: "",
+      cause: "Educação",
+      startDate: "",
+      endDate: "",
+      maxVolunteers: 1
+    })
+  }
 
   const formatarMoeda = (valor: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -196,14 +232,162 @@ export default function AdminPage() {
     return new Date(data).toLocaleDateString("pt-BR")
   }
 
+  // Função para buscar projetos da ONG
+  const fetchProjetosOng = async () => {
+    try {
+      setIsLoadingProjetos(true)
+      setErrorProjetos("")
+      
+      const token = localStorage.getItem('auth_token')
+      
+      if (!token) {
+        setErrorProjetos("Token de autenticação não encontrado")
+        return
+      }
+
+      const response = await apiService.getProjects(token)
+      
+      if (response.error) {
+        setErrorProjetos(response.error)
+        return
+      }
+
+      if (response.data) {
+        // Filtrar apenas projetos da ONG logada
+        const userData = localStorage.getItem('auth_user')
+        if (userData) {
+          try {
+            const user = JSON.parse(userData)
+            // Para simplificar, vamos assumir que o admin é uma ONG
+            // Em um sistema real, você verificaria o userType e ngoId
+            const projetosOng = response.data.filter((projeto: any) => 
+              projeto.ngoId === user.id || user.userType === 'ngo'
+            )
+            setProjetosDinamicos(projetosOng)
+            console.log('📱 Projetos da ONG carregados:', projetosOng)
+          } catch (error) {
+            console.error('Erro ao filtrar projetos da ONG:', error)
+            setProjetosDinamicos(response.data)
+          }
+        } else {
+          setProjetosDinamicos(response.data)
+        }
+      }
+    } catch (err) {
+      setErrorProjetos("Erro ao carregar projetos. Tente novamente.")
+      console.error("Erro ao buscar projetos:", err)
+    } finally {
+      setIsLoadingProjetos(false)
+    }
+  }
+
+  // Função para criar novo projeto
+  const handleCreateProject = async () => {
+    console.log('🚀 Função handleCreateProject chamada')
+    console.log('📝 Dados do projeto:', novoProjeto)
+    
+    try {
+      setCreatingProject(true)
+      setErrorProjetos("")
+
+      const token = localStorage.getItem('auth_token')
+      console.log('🔑 Token encontrado:', token ? 'Sim' : 'Não')
+      
+      if (!token) {
+        alert('Token de autenticação não encontrado')
+        return
+      }
+
+      // Validar campos obrigatórios com logs detalhados
+      console.log('🔍 Validando campos:')
+      console.log('  - title:', novoProjeto.title, 'vazio:', !novoProjeto.title)
+      console.log('  - description:', novoProjeto.description, 'vazio:', !novoProjeto.description)
+      console.log('  - location:', novoProjeto.location, 'vazio:', !novoProjeto.location)
+      console.log('  - cause:', novoProjeto.cause, 'vazio:', !novoProjeto.cause)
+      console.log('  - startDate:', novoProjeto.startDate, 'vazio:', !novoProjeto.startDate)
+      console.log('  - endDate:', novoProjeto.endDate, 'vazio:', !novoProjeto.endDate)
+      console.log('  - maxVolunteers:', novoProjeto.maxVolunteers, 'vazio:', !novoProjeto.maxVolunteers)
+      
+      if (!novoProjeto.title?.trim()) {
+        alert('Título do projeto é obrigatório')
+        return
+      }
+      if (!novoProjeto.description?.trim()) {
+        alert('Descrição do projeto é obrigatória')
+        return
+      }
+      if (!novoProjeto.location?.trim()) {
+        alert('Localização do projeto é obrigatória')
+        return
+      }
+      if (!novoProjeto.cause?.trim()) {
+        alert('Causa do projeto é obrigatória')
+        return
+      }
+      if (!novoProjeto.startDate) {
+        alert('Data de início é obrigatória')
+        return
+      }
+      if (!novoProjeto.endDate) {
+        alert('Data de fim é obrigatória')
+        return
+      }
+      
+      // Validar se a data de fim é posterior à data de início
+      if (new Date(novoProjeto.endDate) <= new Date(novoProjeto.startDate)) {
+        alert('A data de fim deve ser posterior à data de início')
+        return
+      }
+      
+      if (!novoProjeto.maxVolunteers || novoProjeto.maxVolunteers < 1) {
+        alert('Número máximo de voluntários deve ser pelo menos 1')
+        return
+      }
+
+      console.log('📡 Chamando API para criar projeto...')
+      console.log('🔗 Endpoint:', '/projects')
+      console.log('📤 Dados enviados:', novoProjeto)
+      
+      const response = await apiService.createProject(novoProjeto, token)
+      console.log('📥 Resposta da API:', response)
+      
+      if (response.error) {
+        console.log('❌ Erro da API:', response.error)
+        alert(`Erro ao criar projeto: ${response.error}`)
+        return
+      }
+
+      // Projeto criado com sucesso
+      alert('Projeto criado com sucesso!')
+      
+      // Limpar formulário
+      resetForm()
+      
+      // Fechar modal e recarregar projetos
+      setShowCreateProject(false)
+      fetchProjetosOng()
+      
+    } catch (error) {
+      console.error("Erro ao criar projeto:", error)
+      alert('Erro ao criar projeto. Tente novamente.')
+    } finally {
+      setCreatingProject(false)
+    }
+  }
+
+  // useEffect para carregar projetos ao montar a página
+  useEffect(() => {
+    fetchProjetosOng()
+  }, [])
+
   const usuariosFiltrados = usuarios.filter((usuario) => {
     const matchNome = usuario.nome.toLowerCase().includes(filtroUsuarios.toLowerCase())
     const matchStatus = filtroStatusUsuarios === "Todos" || usuario.status === filtroStatusUsuarios
     return matchNome && matchStatus
   })
 
-  const projetosFiltrados = projetos.filter((projeto) => {
-    const matchTitulo = projeto.titulo.toLowerCase().includes(filtroProjetos.toLowerCase())
+  const projetosFiltrados = projetosDinamicos.filter((projeto) => {
+    const matchTitulo = projeto.title?.toLowerCase().includes(filtroProjetos.toLowerCase()) || false
     const matchStatus = filtroStatusProjetos === "Todos" || projeto.status === filtroStatusProjetos
     return matchTitulo && matchStatus
   })
@@ -428,7 +612,7 @@ export default function AdminPage() {
                     </CardTitle>
                     <CardDescription>Aprove, edite e monitore todos os projetos</CardDescription>
                   </div>
-                  <Button>
+                  <Button onClick={() => setShowCreateProject(true)}>
                     <FolderOpen className="mr-2 h-4 w-4" />
                     Novo Projeto
                   </Button>
@@ -480,62 +664,55 @@ export default function AdminPage() {
                         <TableRow key={projeto.id}>
                           <TableCell>
                             <div>
-                              <div className="font-medium">{projeto.titulo}</div>
+                              <div className="font-medium">{projeto.title}</div>
                               <Badge variant="outline" className="mt-1">
-                                {projeto.categoria}
+                                {projeto.cause}
                               </Badge>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
                               <Building className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-sm">{projeto.organizacao}</span>
+                              <span className="text-sm">ONG Logada</span>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
                               <MapPin className="h-3 w-3 text-muted-foreground" />
                               <span className="text-sm">
-                                {projeto.cidade}, {projeto.estado}
+                                {projeto.location}
                               </span>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="text-sm">
-                              {projeto.voluntarios}/{projeto.maxVoluntarios}
+                              {projeto.enrollments?.length || 0}/{projeto.maxVolunteers}
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="text-sm">
-                              <div>{formatarData(projeto.dataInicio)}</div>
-                              <div className="text-muted-foreground">até {formatarData(projeto.dataFim)}</div>
+                              <div>{formatarData(projeto.startDate)}</div>
+                              <div className="text-muted-foreground">até {formatarData(projeto.endDate)}</div>
                             </div>
                           </TableCell>
                           <TableCell>
                             <Badge
                               variant={
-                                projeto.status === "Ativo"
+                                projeto.status === "open"
                                   ? "default"
-                                  : projeto.status === "Pendente"
+                                  : projeto.status === "closed"
                                     ? "secondary"
                                     : "outline"
                               }
                             >
-                              {projeto.status}
+                              {projeto.status === "open" ? "Aberto" : 
+                               projeto.status === "closed" ? "Fechado" : 
+                               projeto.status === "in_progress" ? "Em Andamento" : 
+                               projeto.status === "completed" ? "Concluído" : projeto.status}
                             </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-2">
-                              {projeto.status === "Pendente" && (
-                                <>
-                                  <Button variant="ghost" size="sm" className="text-green-600">
-                                    <CheckCircle className="h-4 w-4" />
-                                  </Button>
-                                  <Button variant="ghost" size="sm" className="text-red-600">
-                                    <XCircle className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
                               <Button variant="ghost" size="sm">
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -808,6 +985,184 @@ export default function AdminPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Modal de Criação de Projeto */}
+      {showCreateProject && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style={{ zIndex: 9999 }}>
+          <div className="bg-background rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" style={{ backgroundColor: 'white' }}>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-2xl font-bold">Criar Novo Projeto</h2>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="text-sm text-muted-foreground">Progresso:</div>
+                  <div className="flex gap-1">
+                    {[
+                      novoProjeto.title?.trim(),
+                      novoProjeto.description?.trim(),
+                      novoProjeto.location?.trim(),
+                      novoProjeto.cause?.trim(),
+                      novoProjeto.startDate,
+                      novoProjeto.endDate,
+                      novoProjeto.maxVolunteers > 0
+                    ].filter(Boolean).length}/7 campos preenchidos
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCreateProject(false)}
+                className="h-8 w-8 p-0"
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Título do Projeto
+                  {novoProjeto.title?.trim() && <span className="text-green-600 ml-1">✓</span>}
+                </label>
+                <Input
+                  placeholder="Ex: Educação para Todos"
+                  value={novoProjeto.title}
+                  onChange={(e) => setNovoProjeto(prev => ({ ...prev, title: e.target.value }))}
+                  className={novoProjeto.title?.trim() ? 'border-green-500' : ''}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Descrição
+                  {novoProjeto.description?.trim() && <span className="text-green-600 ml-1">✓</span>}
+                </label>
+                <textarea
+                  className={`w-full p-3 border rounded-md resize-none h-24 ${
+                    novoProjeto.description?.trim() ? 'border-green-500' : 'border-input'
+                  }`}
+                  placeholder="Descreva o projeto em detalhes..."
+                  value={novoProjeto.description}
+                  onChange={(e) => setNovoProjeto(prev => ({ ...prev, description: e.target.value }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Localização
+                    {novoProjeto.location?.trim() && <span className="text-green-600 ml-1">✓</span>}
+                  </label>
+                  <Input
+                    placeholder="Ex: São Paulo, SP"
+                    value={novoProjeto.location}
+                    onChange={(e) => setNovoProjeto(prev => ({ ...prev, location: e.target.value }))}
+                    className={novoProjeto.location?.trim() ? 'border-green-500' : ''}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Causa
+                    {novoProjeto.cause?.trim() && <span className="text-green-600 ml-1">✓</span>}
+                  </label>
+                  <Select value={novoProjeto.cause} onValueChange={(value) => setNovoProjeto(prev => ({ ...prev, cause: value }))}>
+                    <SelectTrigger className={novoProjeto.cause?.trim() ? 'border-green-500' : ''}>
+                      <SelectValue placeholder="Selecione uma causa" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[9999]">
+                      <SelectItem value="Educação">Educação</SelectItem>
+                      <SelectItem value="Saúde">Saúde</SelectItem>
+                      <SelectItem value="Meio ambiente">Meio ambiente</SelectItem>
+                      <SelectItem value="Assistência Social">Assistência Social</SelectItem>
+                      <SelectItem value="Cultura">Cultura</SelectItem>
+                      <SelectItem value="Esporte">Esporte</SelectItem>
+                      <SelectItem value="Direitos Humanos">Direitos Humanos</SelectItem>
+                      <SelectItem value="Animais">Animais</SelectItem>
+                      <SelectItem value="Combate à Fome">Combate à Fome</SelectItem>
+                      <SelectItem value="Tecnologia">Tecnologia</SelectItem>
+                      <SelectItem value="Religião">Religião</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Data de Início
+                    {novoProjeto.startDate && <span className="text-green-600 ml-1">✓</span>}
+                  </label>
+                  <Input
+                    type="date"
+                    value={novoProjeto.startDate}
+                    onChange={(e) => setNovoProjeto(prev => ({ ...prev, startDate: e.target.value }))}
+                    className={novoProjeto.startDate ? 'border-green-500' : ''}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Data de Fim
+                    {novoProjeto.endDate && <span className="text-green-600 ml-1">✓</span>}
+                  </label>
+                  <Input
+                    type="date"
+                    value={novoProjeto.endDate}
+                    onChange={(e) => setNovoProjeto(prev => ({ ...prev, endDate: e.target.value }))}
+                    className={novoProjeto.endDate ? 'border-green-500' : ''}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Máx. Voluntários
+                    {novoProjeto.maxVolunteers && novoProjeto.maxVolunteers > 0 && <span className="text-green-600 ml-1">✓</span>}
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={novoProjeto.maxVolunteers}
+                    onChange={(e) => setNovoProjeto(prev => ({ ...prev, maxVolunteers: parseInt(e.target.value) || 1 }))}
+                    className={novoProjeto.maxVolunteers && novoProjeto.maxVolunteers > 0 ? 'border-green-500' : ''}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={handleCreateProject}
+                  disabled={creatingProject}
+                  className="flex-1"
+                >
+                  {creatingProject ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Criando...
+                    </>
+                  ) : (
+                    'Criar Projeto'
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={resetForm}
+                  disabled={creatingProject}
+                >
+                  Limpar
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCreateProject(false)}
+                  disabled={creatingProject}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
