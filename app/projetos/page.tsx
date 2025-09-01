@@ -26,6 +26,26 @@ interface Project {
   ngoId: string;
   createdAt: string;
   updatedAt: string;
+  enrollments?: Enrollment[];
+}
+
+// Interface para enrollment
+interface Enrollment {
+  id: string;
+  volunteerId: string;
+  projectId: string;
+  status: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Interface para usuário autenticado
+interface AuthenticatedUser {
+  id: string;
+  name: string;
+  email: string;
+  userType: string;
 }
 
 const causas = [
@@ -61,6 +81,7 @@ export default function ProjetosPage() {
   const [joiningProjects, setJoiningProjects] = useState<Set<string>>(new Set())
   const [joinedProjects, setJoinedProjects] = useState<Set<string>>(new Set())
   const [successMessage, setSuccessMessage] = useState("")
+  const [authenticatedUser, setAuthenticatedUser] = useState<AuthenticatedUser | null>(null)
   const [filtros, setFiltros] = useState({
     busca: "",
     cidade: "",
@@ -74,21 +95,45 @@ export default function ProjetosPage() {
     fetchProjetos()
   }, [])
 
-  // Carregar projetos inscritos do localStorage ao montar a página
+  // Recarregar projetos quando o usuário autenticado for carregado
   useEffect(() => {
-    const savedJoinedProjects = localStorage.getItem('joined_projects')
-    if (savedJoinedProjects) {
-      try {
-        const projectIds = JSON.parse(savedJoinedProjects)
-        setJoinedProjects(new Set(projectIds))
-        console.log('📱 Projetos inscritos carregados do localStorage:', projectIds)
-      } catch (error) {
-        console.error('Erro ao carregar projetos inscritos do localStorage:', error)
-        localStorage.removeItem('joined_projects')
-      }
-    } else {
-      console.log('📱 Nenhum projeto inscrito encontrado no localStorage')
+    if (authenticatedUser && authenticatedUser.userType === 'volunteer') {
+      fetchProjetos()
     }
+  }, [authenticatedUser])
+
+  // Carregar usuário autenticado e verificar inscrições
+  useEffect(() => {
+    const loadAuthenticatedUser = () => {
+      const token = localStorage.getItem('auth_token')
+      const userData = localStorage.getItem('auth_user')
+      
+      if (token && userData) {
+        try {
+          const user = JSON.parse(userData)
+          setAuthenticatedUser(user)
+          
+          // Verificar se o usuário é voluntário
+          if (user.userType === 'volunteer') {
+            // Carregar projetos inscritos do localStorage
+            const savedJoinedProjects = localStorage.getItem('joined_projects')
+            if (savedJoinedProjects) {
+              try {
+                const projectIds = JSON.parse(savedJoinedProjects)
+                setJoinedProjects(new Set(projectIds))
+              } catch (error) {
+                console.error('Erro ao carregar projetos inscritos:', error)
+                localStorage.removeItem('joined_projects')
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Erro ao carregar dados do usuário:', error)
+        }
+      }
+    }
+    
+    loadAuthenticatedUser()
   }, [])
 
   // Sincronizar com mudanças no localStorage (útil para múltiplas abas)
@@ -128,8 +173,53 @@ export default function ProjetosPage() {
       }
 
       if (response.data) {
-        setProjetos(response.data)
-        setProjetosFiltrados(response.data)
+        console.log('📊 Dados brutos da API:', response.data)
+        
+        // Verificar se os dados estão no formato esperado
+        let projectsData = response.data
+        
+        // Se os dados vierem no formato { project: {...}, users: [...] }
+        if (Array.isArray(response.data) && response.data.length > 0 && response.data[0].project) {
+          console.log('🔄 Convertendo formato de dados...')
+          projectsData = response.data.map((item: any) => ({
+            ...item.project,
+            enrollments: item.users ? item.users.map((user: any) => ({
+              id: user.id,
+              volunteerId: user.id,
+              projectId: item.project.id,
+              status: 'pending',
+              notes: '',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            })) : []
+          }))
+        }
+        
+        console.log('✅ Dados processados:', projectsData)
+        setProjetos(projectsData)
+        setProjetosFiltrados(projectsData)
+        
+        // Verificar enrollments se o usuário estiver autenticado
+        if (authenticatedUser && authenticatedUser.userType === 'volunteer') {
+          const enrolledProjectIds = new Set<string>()
+          
+          projectsData.forEach((project: Project) => {
+            if (project.enrollments && project.enrollments.length > 0) {
+              const isEnrolled = project.enrollments.some(enrollment => 
+                enrollment.volunteerId === authenticatedUser.id
+              )
+              if (isEnrolled) {
+                enrolledProjectIds.add(project.id)
+              }
+            }
+          })
+          
+          // Atualizar estado de projetos inscritos
+          setJoinedProjects(enrolledProjectIds)
+          
+          // Salvar no localStorage para compatibilidade
+          localStorage.setItem('joined_projects', JSON.stringify(Array.from(enrolledProjectIds)))
+        }
       }
     } catch (err) {
       setError("Erro ao carregar projetos. Tente novamente.")
@@ -140,6 +230,12 @@ export default function ProjetosPage() {
   }
 
   const handleJoinProject = async (projectId: string) => {
+    // Verificar se já está inscrito
+    if (isUserEnrolled({ id: projectId } as Project)) {
+      alert("Você já está inscrito neste projeto!")
+      return
+    }
+
     const token = localStorage.getItem('auth_token')
     const userData = localStorage.getItem('auth_user')
     
@@ -240,6 +336,23 @@ export default function ProjetosPage() {
 
   const handleFiltroChange = (campo: string, valor: string) => {
     setFiltros((prev) => ({ ...prev, [campo]: valor }))
+  }
+
+  // Verificar se o usuário está inscrito em um projeto
+  const isUserEnrolled = (project: Project): boolean => {
+    if (!authenticatedUser || authenticatedUser.userType !== 'volunteer') {
+      return false
+    }
+    
+    // Verificar se o projeto tem enrollments e se o usuário está inscrito
+    if (project.enrollments && project.enrollments.length > 0) {
+      return project.enrollments.some(enrollment => 
+        enrollment.volunteerId === authenticatedUser.id
+      )
+    }
+    
+    // Fallback para localStorage (para compatibilidade)
+    return joinedProjects.has(project.id)
   }
 
   const limparFiltros = () => {
@@ -466,8 +579,8 @@ export default function ProjetosPage() {
 
         {/* Lista de Projetos */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projetosFiltrados.map((projeto) => (
-            <Card key={projeto.id} className="hover:shadow-lg transition-shadow">
+          {projetosFiltrados.map((projeto, index) => (
+            <Card key={projeto.id || `projeto-${index}`} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex justify-between items-start mb-2">
                   <Badge variant="secondary">{projeto.cause}</Badge>
@@ -514,7 +627,7 @@ export default function ProjetosPage() {
                   </Link>
                   {(() => {
                     const isJoining = joiningProjects.has(projeto.id)
-                    const hasJoined = joinedProjects.has(projeto.id)
+                    const hasJoined = isUserEnrolled(projeto)
                     
                     if (hasJoined) {
                       return (

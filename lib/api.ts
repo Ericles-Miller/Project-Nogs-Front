@@ -55,14 +55,39 @@ class ApiService {
 
     try {
       const response = await fetch(url, config);
-      const data = await response.json();
 
-      if (!response.ok) {
-        return {
-          error: data.message || `Erro ${response.status}: ${response.statusText}`,
-        };
+      // Para respostas vazias (como 204 No Content), verificar se é GET
+      if (response.status === 204) {
+        // Se for GET, 204 significa sem conteúdo (erro)
+        if (options.method === 'GET') {
+          return { error: "Nenhum dado encontrado" }
+        }
+        // Para outros métodos (POST, PUT, DELETE), 204 pode ser sucesso
+        return { message: "Operação realizada com sucesso" }
       }
 
+      // Tentar fazer parse do JSON apenas se houver conteúdo
+      let data
+      const contentType = response.headers.get('content-type')
+      
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          data = await response.json()
+        } catch (jsonError) {
+          return {
+            error: "Resposta inválida do servidor"
+          }
+        }
+      } else {
+        data = null
+      }
+
+        if (!response.ok) {
+        return {
+          error: data?.message || `Erro ${response.status}: ${response.statusText}`,
+        };
+      }
+      
       return { data };
     } catch (error) {
       return {
@@ -142,16 +167,59 @@ class ApiService {
     });
   }
 
-  async getCampaigns(token?: string): Promise<ApiResponse> {
+
+
+  async getCampaigns(filters?: {
+    title?: string;
+    status?: string;
+    category?: string;
+  }, token?: string): Promise<ApiResponse> {
     const headers: any = {};
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
     
-    return this.request('/campaigns', {
+    // Construir query string com filtros
+    const params = new URLSearchParams();
+    if (filters?.title) params.append('title', filters.title);
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.category) params.append('category', filters.category);
+    
+    const queryString = params.toString();
+    const endpoint = queryString ? `/campaigns?${queryString}` : '/campaigns';
+    
+    return this.request(endpoint, {
       method: 'GET',
       headers,
     });
+  }
+
+  async getCampaignById(id: string): Promise<ApiResponse> {
+    return this.request(`/campaigns/${id}`, {
+      method: 'GET',
+    });
+  }
+
+  async donateToCampaign(campaignId: string, donationData: {
+    amount: number;
+    donorName?: string;
+    donorEmail?: string;
+    message?: string;
+    anonymous: boolean;
+  }): Promise<ApiResponse> {
+    try {
+      const response = await this.request(`/campaigns/${campaignId}/donate`, {
+        method: 'POST',
+        body: JSON.stringify(donationData),
+      });
+      
+      return response;
+    } catch (error) {
+      console.error("Erro na requisição de doação:", error);
+      return {
+        error: "Erro ao conectar com o servidor. Tente novamente.",
+      };
+    }
   }
 
   // User endpoints (autenticados)
